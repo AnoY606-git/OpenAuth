@@ -124,8 +124,14 @@ class OpenAuthFlowTest {
         compose.setContent { OpenAuthApp(model, onUnlock = {}, clock = OtpClock { 59 }) }
         compose.onNodeWithTag("edit-$id").performClick()
         compose.onNodeWithTag("editor-delete").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(1, snapshot().entries.size) }
-        compose.onNodeWithTag("confirm-delete").performClick()
+        compose.runOnIdle {
+            assertEquals(1, snapshot().entries.size)
+            assertEquals("Delete click must request confirmation before any vault mutation", id, model.pendingDelete.value)
+        }
+        compose.waitUntil(5000) {
+            compose.onAllNodesWithTag("confirm-delete").fetchSemanticsNodes().size == 1
+        }
+        compose.onNodeWithTag("confirm-delete").assertIsDisplayed().performClick()
         compose.waitUntil(5000) { snapshot().entries.isEmpty() }
     }
 }
