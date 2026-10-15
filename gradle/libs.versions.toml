@@ -2,9 +2,13 @@
 agp = "8.13.2"
 kotlin = "2.2.21"
 junit = "4.13.2"
+serialization = "1.9.0"
+bcprov = "1.83"
 
 [libraries]
 junit = { module = "junit:junit", version.ref = "junit" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprov" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
