@@ -38,7 +38,7 @@ class RealBackupFlowTest {
     }
     private fun snapshot() = (app.vault.state.value as VaultState.Unlocked).snapshot
     private fun password(value: String) {
-        compose.onNodeWithText(text(R.string.backup_password_label)).performTextInput(value)
+        compose.onNode(hasText(text(R.string.backup_password_label)) and hasSetTextAction()).performTextInput(value)
         compose.onNodeWithText(text(R.string.backup_continue)).performClick()
     }
 

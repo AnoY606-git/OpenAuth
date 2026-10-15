@@ -20,6 +20,8 @@ import dev.openauth.app.ui.AccountDraft
 import dev.openauth.app.ui.OpenAuthViewModel
 import dev.openauth.app.vault.VaultState
 import dev.openauth.app.ui.AccountSort
+import dev.openauth.app.ui.AppLanguage
+import dev.openauth.app.ui.LanguageMode
 import dev.openauth.app.ui.selectAccounts
 import dev.openauth.core.model.*
 import dev.openauth.core.otp.Base32
@@ -40,9 +42,27 @@ class VisualCaptureTest {
     private val device get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
     @Test fun captureSyntheticCodesAndBackupsInBothThemes() {
+        val previousLanguage = AppLanguage.selected(app)
+        try {
+            captureSyntheticContent()
+        } finally {
+            AppLanguage.save(app, previousLanguage)
+        }
+    }
+
+    private fun captureSyntheticContent() {
         val arguments = InstrumentationRegistry.getArguments()
         val pin = arguments.getString("testPin")
         assumeNotNull(pin)
+        arguments.getString("captureLanguage")?.let { language ->
+            val mode = when (language) {
+                "ru" -> LanguageMode.RUSSIAN
+                "en" -> LanguageMode.ENGLISH
+                else -> error("captureLanguage must be ru or en")
+            }
+            AppLanguage.save(app, mode)
+            compose.activityRule.scenario.recreate()
+        }
         compose.onNodeWithTag("unlock-vault").performScrollTo().performClick()
         val input = device.wait(Until.findObject(By.res("com.android.systemui", "lockPassword")), 10_000)
         assertNotNull(input); input.text = pin!!; device.pressEnter()
@@ -80,10 +100,33 @@ class VisualCaptureTest {
                     capture("backups-$label.png")
                     compose.onNodeWithText(compose.activity.getString(R.string.drive_in_development)).performScrollTo()
                     capture("backups-drive-$label.png")
+                    if (arguments.getString("captureDetails") == "true") captureDetails(label)
                 }
             }
         } finally {
             preferences.edit().apply { if (previous == null) remove("theme") else putString("theme", previous) }.commit()
+        }
+    }
+
+    private fun captureDetails(label: String) {
+        compose.onAllNodesWithText(compose.activity.getString(R.string.settings)).onLast().performClick()
+        capture("settings-$label.png")
+        compose.onAllNodesWithText(compose.activity.getString(R.string.codes)).onLast().performClick()
+        // Только синтетический androidTest: открытый sheet наследует незапрещённое окно.
+        compose.activityRule.scenario.onActivity { it.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+        try {
+            compose.onNodeWithTag("add-account").assertIsDisplayed().performClick()
+            capture("editor-$label.png")
+            compose.onNodeWithText(compose.activity.getString(R.string.advanced)).performScrollTo().performClick()
+            compose.onNodeWithTag("editor-save").performScrollTo()
+            capture("editor-advanced-$label.png")
+            val cancel = compose.onNodeWithText(compose.activity.getString(R.string.cancel)).performScrollTo()
+            device.waitForIdle(5000)
+            cancel.assertIsDisplayed().performClick()
+            compose.waitUntil(5000) { compose.onAllNodesWithTag("editor-save").fetchSemanticsNodes().isEmpty() }
+            device.waitForIdle(5000)
+        } finally {
+            compose.activityRule.scenario.onActivity { it.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) }
         }
     }
 
@@ -157,12 +200,16 @@ class VisualCaptureTest {
 
     private fun capture(name: String) {
         val target = File(app.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
-        compose.activityRule.scenario.onActivity { it.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+        var wasSecure = true
+        compose.activityRule.scenario.onActivity {
+            wasSecure = it.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0
+            it.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         try {
             compose.waitForIdle(); device.waitForIdle()
             assertTrue("Could not save screenshot", device.takeScreenshot(File(target, name)))
         } finally {
-            compose.activityRule.scenario.onActivity { it.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+            if (wasSecure) compose.activityRule.scenario.onActivity { it.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) }
         }
     }
 }

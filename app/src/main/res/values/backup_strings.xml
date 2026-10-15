@@ -5,9 +5,9 @@
     <string name="backup_state_pending">Encrypted snapshot waiting for upload</string>
     <string name="backup_state_uploaded">Snapshot uploaded</string>
     <string name="backup_state_failure">Backup needs attention. Your local accounts are still available.</string>
-    <string name="backup_configure">Set or change backup password</string>
-    <string name="backup_export">Save encrypted file</string>
-    <string name="backup_open">Open backup file</string>
+    <string name="backup_configure">Backup password</string>
+    <string name="backup_export">Save backup</string>
+    <string name="backup_open">Open backup</string>
     <string name="backup_cancel">Cancel</string>
     <string name="backup_continue">Continue</string>
     <string name="backup_file_selected">Backup selected. Unlock to preview its contents.</string>

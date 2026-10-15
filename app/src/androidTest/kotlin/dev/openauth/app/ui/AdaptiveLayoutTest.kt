@@ -1,5 +1,6 @@
 package dev.openauth.app.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,7 +10,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,11 +22,13 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import dev.openauth.app.R
 import dev.openauth.app.scanner.CameraUnavailable
 import dev.openauth.app.ui.theme.OpenAuthTheme
 import dev.openauth.core.model.*
 import java.util.UUID
+import java.util.Locale
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +43,67 @@ class AdaptiveLayoutTest {
         OtpType.TOTP, HashAlgorithm.SHA1, 8, 30, 0, null, false, 0,
     )
     private val snapshot = VaultSnapshot(revision = 0, entries = listOf(entry), groups = emptyList())
+
+    @Test fun accountActionsHaveMatchingBoundsAndReadableLabelsAcrossLocalesAndFontSizes() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val contexts = listOf("ru", "en").associateWith { language ->
+            context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+                setLocale(Locale.forLanguageTag(language))
+            })
+        }
+        val language = mutableStateOf("ru")
+        val size = mutableStateOf(Window(320, 568, 1f))
+        compose.setContent {
+            val localized = contexts.getValue(language.value)
+            CompositionLocalProvider(
+                LocalContext provides localized,
+                LocalConfiguration provides localized.resources.configuration,
+                LocalResources provides localized.resources,
+            ) {
+                TestWindow(size.value) { AccountsScreen(snapshot) }
+            }
+        }
+        for (locale in contexts.keys) {
+            for ((width, height) in listOf(360 to 640, 320 to 568, 412 to 732)) {
+                for (font in listOf(1f, 1.3f, 2f)) {
+                    val window = Window(width, height, font)
+                    val scenario = "$locale $window"
+                    compose.runOnIdle { language.value = locale; size.value = window }
+                    val scan = compose.onNodeWithTag("scan-account").assertIsDisplayed().assertHasClickAction()
+                    val add = compose.onNodeWithTag("add-account").assertIsDisplayed().assertHasClickAction()
+                    val scanBounds = scan.fetchSemanticsNode().boundsInRoot
+                    val addBounds = add.fetchSemanticsNode().boundsInRoot
+                    assertEquals("Action widths at $scenario", scanBounds.width, addBounds.width, 1f)
+                    val sameRow = kotlin.math.abs(scanBounds.top - addBounds.top) <= 1f
+                    if (font >= 1.3f) assertFalse("Large text actions must stack at $scenario", sameRow)
+                    if (sameRow) {
+                        assertEquals("Adjacent action heights at $scenario", scanBounds.height, addBounds.height, 1f)
+                        assertTrue("Adjacent actions must not overlap at $scenario", scanBounds.right <= addBounds.left + 1f)
+                    } else {
+                        assertTrue("Stacked actions must not overlap at $scenario", scanBounds.bottom <= addBounds.top + 1f)
+                        assertEquals("Stacked action alignment at $scenario", scanBounds.left, addBounds.left, 1f)
+                    }
+                    for ((tag, resource) in listOf("scan-account" to R.string.scan_qr, "add-account" to R.string.add_account)) {
+                        val label = contexts.getValue(locale).getString(resource)
+                        val text = compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true)
+                        val layouts = mutableListOf<TextLayoutResult>()
+                        text.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+                        val layout = layouts.single()
+                        assertTextFits("$tag at $scenario", text, layout)
+                        assertEquals("Complete label at $scenario", label.length, layout.getLineEnd(layout.lineCount - 1))
+                        assertFalse("No ellipsis at $scenario", (0 until layout.lineCount).any(layout::isLineEllipsized))
+                        val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+                        val minimumTarget = 48f * layout.layoutInput.density.density
+                        assertTrue("Minimum action target at $scenario", bounds.width >= minimumTarget - 1f && bounds.height >= minimumTarget - 1f)
+                        if (!sameRow) {
+                            val fullWidth = (window.width - 40) * layout.layoutInput.density.density
+                            assertEquals("Stacked actions use the available width at $scenario", fullWidth, bounds.width, 2f)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     @Test fun eightDigitCodesStayWholeAndSingleLineAcrossWindowAndFontSizes() {
         val size = mutableStateOf(Window(320, 568, 2f))
@@ -94,8 +161,19 @@ class AdaptiveLayoutTest {
                 }
             }
         }
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        compose.onNodeWithText(context.getString(R.string.advanced)).performScrollTo().performClick()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val device = UiDevice.getInstance(instrumentation)
+        // Compose idle does not wait for the separate Android sheet window and IME transitions.
+        compose.waitForIdle()
+        device.waitForIdle(5000)
+        val advanced = compose.onNodeWithText(context.getString(R.string.advanced)).performScrollTo()
+        device.waitForIdle(5000)
+        advanced.assertIsDisplayed().performClick()
+        compose.waitUntil(5000) {
+            compose.onAllNodesWithText(context.getString(R.string.otp_type)).fetchSemanticsNodes().size == 1
+        }
+        compose.onNodeWithText("TOTP").assertIsSelected()
         for (label in listOf("SHA-1", "SHA-256", "SHA-512")) {
             val algorithm = compose.onNodeWithText(label).performScrollTo().assertIsDisplayed()
             val layouts = mutableListOf<TextLayoutResult>()

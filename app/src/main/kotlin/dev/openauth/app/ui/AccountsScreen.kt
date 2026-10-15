@@ -121,10 +121,10 @@ fun AccountsScreen(
 private fun AccountActions(largeFont: Boolean, onScan: () -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = if (largeFont) 1 else 2) {
-        FilledTonalButton(onClick = onScan, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+        FilledTonalButton(onClick = onScan, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).fillMaxRowHeight().heightIn(min = 48.dp).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
             UiSymbol(Symbol.SCAN); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.scan_qr))
         }
-        Button(onClick = onAdd, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+        Button(onClick = onAdd, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).fillMaxRowHeight().heightIn(min = 48.dp).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
             UiSymbol(Symbol.ADD); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_account))
         }
     }

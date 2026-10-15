@@ -5,9 +5,9 @@
     <string name="backup_state_pending">Зашифрованная копия ожидает отправки</string>
     <string name="backup_state_uploaded">Копия отправлена</string>
     <string name="backup_state_failure">Копия требует внимания. Локальные аккаунты остаются доступны.</string>
-    <string name="backup_configure">Задать или изменить пароль копий</string>
-    <string name="backup_export">Сохранить зашифрованный файл</string>
-    <string name="backup_open">Открыть файл копии</string>
+    <string name="backup_configure">Пароль копий</string>
+    <string name="backup_export">Сохранить копию</string>
+    <string name="backup_open">Открыть копию</string>
     <string name="backup_cancel">Отмена</string>
     <string name="backup_continue">Продолжить</string>
     <string name="backup_file_selected">Копия выбрана. Разблокируйте хранилище для просмотра содержимого.</string>

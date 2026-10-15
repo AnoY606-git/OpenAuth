@@ -4,11 +4,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.openauth.app.R
 import dev.openauth.core.restore.RestoreMode
@@ -40,8 +43,13 @@ fun RestorePreviewScreen(plan: RestorePlan, mode: RestoreMode, busy: Boolean, on
             if (plan.hotpWarnings.isNotEmpty()) Text(stringResource(R.string.backup_hotp_warning), color = MaterialTheme.colorScheme.error)
             if (mode == RestoreMode.REPLACE) {
                 Text(stringResource(R.string.backup_replace_warning))
-                Row { Checkbox(replaceConfirmed, { replaceConfirmed = it }, enabled = !busy)
-                    Text(stringResource(R.string.backup_replace_confirm), Modifier.padding(top = 12.dp)) }
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .toggleable(value = replaceConfirmed, enabled = !busy, role = Role.Checkbox, onValueChange = { replaceConfirmed = it })
+                    .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(replaceConfirmed, onCheckedChange = null, enabled = !busy)
+                    Text(stringResource(R.string.backup_replace_confirm), Modifier.weight(1f).padding(start = 12.dp))
+                }
             }
         } },
         confirmButton = { Button(onClick = onConfirm, enabled = !busy && (mode != RestoreMode.REPLACE || replaceConfirmed)) { Text(stringResource(R.string.backup_restore_confirm)) } },
