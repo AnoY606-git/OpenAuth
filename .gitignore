@@ -2,6 +2,8 @@
 docs/superpowers/
 docs/internal/
 .development/
+.superpowers/
+.worktrees/
 .agents/
 .codex/
 AGENTS.md
