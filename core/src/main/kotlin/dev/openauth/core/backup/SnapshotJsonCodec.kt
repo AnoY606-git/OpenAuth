@@ -2,6 +2,7 @@ package dev.openauth.core.backup
 
 import dev.openauth.core.model.EntryGroup
 import dev.openauth.core.model.HashAlgorithm
+import dev.openauth.core.model.HotpCounterFloor
 import dev.openauth.core.model.OtpEntry
 import dev.openauth.core.model.OtpSecret
 import dev.openauth.core.model.OtpType
@@ -12,7 +13,13 @@ import java.nio.charset.CodingErrorAction
 import java.util.Base64
 import java.util.UUID
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToStream
 
@@ -36,7 +43,8 @@ object SnapshotJsonCodec {
                         entry.type.name, entry.algorithm.name, entry.digits, entry.periodSeconds, entry.nextCounter,
                         entry.groupId?.toString(), entry.favorite, entry.sortIndex)
                 } finally { secret.fill(0) }
-            }, snapshot.groups.map { GroupData(it.id.toString(), it.name) })
+            }, snapshot.groups.map { GroupData(it.id.toString(), it.name) },
+            snapshot.hotpCounterFloors.map { FloorData(it.fingerprint, it.nextCounter) })
         return BoundedOutput().use { output ->
             json.encodeToStream(data, output)
             output.toByteArray()
@@ -62,7 +70,8 @@ object SnapshotJsonCodec {
                         entry.periodSeconds, entry.nextCounter, entry.groupId?.let(::uuid), entry.favorite, entry.sortIndex)
                 } finally { secret.fill(0) }
             }
-            return VaultSnapshot(data.schemaVersion, data.revision, entries, groups)
+            return VaultSnapshot(data.schemaVersion, data.revision, entries, groups,
+                data.hotpCounterFloors.map { HotpCounterFloor(it.fingerprint, it.nextCounter) })
         } catch (failure: BackupException) { throw failure
         } catch (_: IllegalArgumentException) { invalid()
         } catch (_: java.nio.charset.CharacterCodingException) { invalid() }
@@ -108,8 +117,13 @@ object SnapshotJsonCodec {
     private fun limit(): Nothing = throw BackupException(BackupFailure.LIMIT_EXCEEDED)
     private fun invalid(): Nothing = throw BackupException(BackupFailure.INVALID_FORMAT)
 
+    @OptIn(ExperimentalSerializationApi::class)
     @Serializable private data class SnapshotData(
-        val schemaVersion: Int, val revision: Long, val entries: List<EntryData>, val groups: List<GroupData>,
+        val schemaVersion: Int, val revision: Long,
+        @Serializable(with = EntryListSerializer::class) val entries: List<EntryData>,
+        @Serializable(with = GroupListSerializer::class) val groups: List<GroupData>,
+        @EncodeDefault(EncodeDefault.Mode.NEVER)
+        @Serializable(with = FloorListSerializer::class) val hotpCounterFloors: List<FloorData> = emptyList(),
     )
     @Serializable private data class EntryData(
         val id: String, val issuer: String, val accountName: String, val secret: String,
@@ -117,4 +131,36 @@ object SnapshotJsonCodec {
         val nextCounter: Long, val groupId: String?, val favorite: Boolean, val sortIndex: Long,
     )
     @Serializable private data class GroupData(val id: String, val name: String)
+    @Serializable private data class FloorData(val fingerprint: String, val nextCounter: Long)
+
+    /** Stop before materializing an unbounded list of DTOs, not after decoding the whole array. */
+    private open class BoundedListSerializer<T>(private val element: KSerializer<T>, private val maximum: Int) : KSerializer<List<T>> {
+        private val delegate = ListSerializer(element)
+        override val descriptor = delegate.descriptor
+        override fun serialize(encoder: Encoder, value: List<T>) {
+            if (value.size > maximum) limit()
+            delegate.serialize(encoder, value)
+        }
+        @OptIn(ExperimentalSerializationApi::class)
+        override fun deserialize(decoder: Decoder): List<T> {
+            val input = decoder.beginStructure(descriptor)
+            val result = ArrayList<T>()
+            if (input.decodeSequentially()) {
+                val size = input.decodeCollectionSize(descriptor)
+                if (size !in 0..maximum) limit()
+                repeat(size) { result.add(input.decodeSerializableElement(descriptor, it, element)) }
+            } else while (true) {
+                val index = input.decodeElementIndex(descriptor)
+                if (index == CompositeDecoder.DECODE_DONE) break
+                if (result.size >= maximum) limit()
+                if (index != result.size) invalid()
+                result.add(input.decodeSerializableElement(descriptor, index, element))
+            }
+            input.endStructure(descriptor)
+            return result
+        }
+    }
+    private object EntryListSerializer : BoundedListSerializer<EntryData>(EntryData.serializer(), 10_000)
+    private object GroupListSerializer : BoundedListSerializer<GroupData>(GroupData.serializer(), VaultSnapshot.MAX_GROUPS)
+    private object FloorListSerializer : BoundedListSerializer<FloorData>(FloorData.serializer(), VaultSnapshot.MAX_HOTP_COUNTER_FLOORS)
 }

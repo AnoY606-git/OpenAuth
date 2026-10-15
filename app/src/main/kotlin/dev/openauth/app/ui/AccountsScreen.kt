@@ -4,10 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.tween
 import dev.openauth.app.ui.motion.OpenAuthMotion
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.platform.LocalDensity
@@ -88,11 +87,11 @@ fun AccountsScreen(
                     }
                 }
                 item(key = "filters", contentType = "filters") {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !favoritesOnly && groupId == null, onClick = { onFavorites(false); onGroup(null) }, label = { Text(stringResource(R.string.all_accounts)) })
-                        FilterChip(selected = favoritesOnly, onClick = { onFavorites(!favoritesOnly) }, label = { Text(stringResource(R.string.favorites)) }, leadingIcon = { UiSymbol(Symbol.STAR, Modifier.size(16.dp), filled = favoritesOnly) })
-                        snapshot.groups.forEach { group -> FilterChip(selected = groupId == group.id, onClick = { onGroup(if (groupId == group.id) null else group.id) }, label = { Text(group.name) }) }
-                        SuggestionChip(onClick = onNewGroup, label = { Text(stringResource(R.string.new_group)) }, icon = { UiSymbol(Symbol.ADD, Modifier.size(16.dp)) })
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item(key = "all") { FilterChip(selected = !favoritesOnly && groupId == null, onClick = { onFavorites(false); onGroup(null) }, label = { Text(stringResource(R.string.all_accounts)) }) }
+                        item(key = "favorites") { FilterChip(selected = favoritesOnly, onClick = { onFavorites(!favoritesOnly) }, label = { Text(stringResource(R.string.favorites)) }, leadingIcon = { UiSymbol(Symbol.STAR, Modifier.size(16.dp), filled = favoritesOnly) }) }
+                        items(snapshot.groups, key = { it.id }) { group -> FilterChip(selected = groupId == group.id, onClick = { onGroup(if (groupId == group.id) null else group.id) }, label = { Text(group.name) }) }
+                        item(key = "new") { SuggestionChip(onClick = onNewGroup, label = { Text(stringResource(R.string.new_group)) }, icon = { UiSymbol(Symbol.ADD, Modifier.size(16.dp)) }) }
                     }
                 }
                 if (shortWindow) item(key = "actions", contentType = "actions") { AccountActions(largeFont, onScan, onAdd) }

@@ -1,6 +1,8 @@
 package dev.openauth.core.restore
 
 import dev.openauth.core.model.OtpEntry
+import dev.openauth.core.model.HotpCounterFloor
+import dev.openauth.core.model.HotpCounterHistory
 import dev.openauth.core.model.OtpGeneratorIdentity
 import dev.openauth.core.model.OtpType
 import dev.openauth.core.model.VaultSnapshot
@@ -19,29 +21,21 @@ object RestorePlanner {
             entry.nextCounter, groups.firstOrNull { it.id == entry.groupId }?.name, entry.favorite, entry.sortIndex,
         )
         // Максимум учитывает все псевдонимы генератора, независимо от режима и порядка.
-        val maximumHotpCounters = HashMap<OtpGeneratorIdentity, Long>()
-        for (snapshot in listOf(current, incoming)) {
-            for (entry in snapshot.entries) {
-                if (entry.type == OtpType.HOTP) {
-                    val identity = OtpGeneratorIdentity.of(entry)
-                    maximumHotpCounters[identity] = maxOf(maximumHotpCounters[identity] ?: 0, entry.nextCounter)
-                }
-            }
-        }
+        val maximumHotpCounters = HotpCounterHistory.maxima(current, incoming)
         fun withMaximumCounter(entry: OtpEntry): OtpEntry {
             if (entry.type != OtpType.HOTP) return entry
-            val maximum = maximumHotpCounters.getValue(OtpGeneratorIdentity.of(entry))
+            val maximum = maximumHotpCounters[HotpCounterFloor.fingerprint(entry.secret)] ?: 0L
             return if (entry.nextCounter == maximum) entry else entry.copy(nextCounter = maximum)
         }
 
         if (mode == RestoreMode.REPLACE) {
             return RestorePlan(
-                result = VaultSnapshot(
+                result = HotpCounterHistory.preserve(VaultSnapshot(
                     schemaVersion = incoming.schemaVersion,
                     revision = current.revision,
                     entries = incoming.entries.map(::withMaximumCounter),
                     groups = incoming.groups,
-                ),
+                ), current, incoming),
                 accounts = incoming.entries.map { RestoreAccountPreview(metadata(it, incoming.groups)) },
                 added = incoming.entries.size,
                 duplicates = 0,
@@ -78,6 +72,7 @@ object RestorePlanner {
                 }
                 else -> group.copy(id = allocateId()).also { remappedIds++ }
             }
+            if (groups.size >= VaultSnapshot.MAX_GROUPS) throw RestorePlanningException(RestoreFailure.GROUP_LIMIT_EXCEEDED)
             groups.add(restored)
             groupsById[restored.id] = restored
             importedGroupIds[group.id] = restored.id
@@ -125,12 +120,12 @@ object RestorePlanner {
         }
 
         return RestorePlan(
-            result = VaultSnapshot(
+            result = HotpCounterHistory.preserve(VaultSnapshot(
                 schemaVersion = current.schemaVersion,
                 revision = current.revision,
                 entries = entries,
                 groups = groups,
-            ),
+            ), current, incoming),
             accounts = accounts,
             added = added,
             duplicates = duplicates,

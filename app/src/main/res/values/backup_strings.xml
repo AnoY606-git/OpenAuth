@@ -17,6 +17,9 @@
     <string name="backup_use_pin">Use a numeric PIN</string>
     <string name="backup_pin_label">Backup PIN</string>
     <string name="backup_password_label">Backup password</string>
+    <string name="backup_password_confirmation">Confirm backup password</string>
+    <string name="backup_pin_confirmation">Confirm backup PIN</string>
+    <string name="backup_confirmation_mismatch">The entries do not match.</string>
     <string name="backup_password_rule">Use at least 12 characters. Spaces and letter case are preserved.</string>
     <string name="backup_pin_warning">Use 8–128 digits. A PIN is easier to guess offline if someone obtains your backup. A long password is stronger.</string>
     <string name="backup_rotation_notice">Changing the password creates a new encryption key. Older files still require their original password.</string>

@@ -2,7 +2,7 @@ package dev.openauth.app.vault
 
 import dev.openauth.core.backup.SnapshotJsonCodec
 import dev.openauth.core.model.OtpEntry
-import dev.openauth.core.model.OtpGeneratorIdentity
+import dev.openauth.core.model.HotpCounterHistory
 import dev.openauth.core.model.OtpType
 import dev.openauth.core.model.VaultSnapshot
 import dev.openauth.core.otp.OtpEngine
@@ -97,7 +97,8 @@ class VaultRepository(
         requireRecoverySession(ticket)
         if (storage.read()?.contentEquals(ticket.ciphertext) != true) throw VaultException(VaultFailure.LOCKED)
         // Полная сериализация проверяет вход до создания ключа или изменения файлов.
-        SnapshotJsonCodec.encode(snapshot).fill(0)
+        val restored = HotpCounterHistory.preserve(snapshot)
+        SnapshotJsonCodec.encode(restored).fill(0)
         val replacementKeys = keys.newRecoveryProtector()
         var installed = false
         var opened: VaultSession? = null
@@ -107,7 +108,7 @@ class VaultRepository(
             authenticate()
             currentCoroutineContext().ensureActive(); requireRecoverySession(ticket)
             opened = VaultSession(key, replacementKeys.wrap(key))
-            val bytes = encode(opened, snapshot, null)
+            val bytes = encode(opened, restored, null)
             currentCoroutineContext().ensureActive()
             val operation = currentCoroutineContext()
             storage.replacePreservingOriginal(ticket.ciphertext, bytes) { install ->
@@ -116,7 +117,7 @@ class VaultRepository(
                     requireRecoverySession(ticket)
                     install()
                     installed = true
-                    publish(ticket.epoch, opened!!, snapshot, null)
+                    publish(ticket.epoch, opened!!, restored, null)
                     opened = null
                     // Все другие preview, включая восстановление того же ciphertext, устаревают.
                     epoch++
@@ -175,7 +176,7 @@ class VaultRepository(
                         val (snapshot, privateState) = decodeContainer(plaintext)
                         try {
                             currentCoroutineContext().ensureActive()
-                            publish(token, opened, snapshot, privateState)
+                            publish(token, opened, HotpCounterHistory.preserve(snapshot), privateState)
                             opened = null
                         } finally { privateState?.fill(0) }
                     } finally { plaintext.fill(0) }
@@ -212,8 +213,8 @@ class VaultRepository(
         withContext(dispatcher) { mutex.withLock {
             val before = currentSnapshot(token)
             val transformed = transform(before)
-            val entries = preserveHotpCounters(before.entries, transformed.entries)
-            commit(token, VaultSnapshot(transformed.schemaVersion, Math.addExact(before.revision, 1), entries, transformed.groups))
+            commit(token, VaultSnapshot(transformed.schemaVersion, Math.addExact(before.revision, 1),
+                transformed.entries, transformed.groups, transformed.hotpCounterFloors))
         } }
     }
 
@@ -256,11 +257,12 @@ class VaultRepository(
     }
 
     private suspend fun commit(token: Long, snapshot: VaultSnapshot, privateState: ByteArray? = null, replaceBackup: Boolean = false) {
+        val preserved = HotpCounterHistory.preserve(snapshot, currentSnapshot(token))
         val (opened, retained) = synchronized(guard) {
             requireSession(token) to (if (replaceBackup) privateState?.copyOf() else backupState?.copyOf())
         }
         try {
-            val bytes = encode(opened, snapshot, retained)
+            val bytes = encode(opened, preserved, retained)
             currentCoroutineContext().ensureActive()
             requireEpoch(token)
             storage.writeAtomically(bytes)
@@ -268,7 +270,7 @@ class VaultRepository(
                 requireSession(token)
                 backupState?.fill(0)
                 backupState = retained?.copyOf()
-                mutableState.value = VaultState.Unlocked(snapshot)
+                mutableState.value = VaultState.Unlocked(preserved)
             }
         } finally { retained?.fill(0) }
     }
@@ -346,15 +348,8 @@ class VaultRepository(
         return snapshot to if (privateLength == 0) null else ByteArray(privateLength).also { buffer.get(it) }
     }
 
-    private fun preserveHotpCounters(before: List<OtpEntry>, after: List<OtpEntry>): List<OtpEntry> {
-        val maxima = HashMap<OtpGeneratorIdentity, Long>()
-        (before.asSequence() + after.asSequence()).filter { it.type == OtpType.HOTP }.forEach {
-            val key = OtpGeneratorIdentity.of(it)
-            maxima[key] = maxOf(maxima[key] ?: 0, it.nextCounter)
-        }
-        return after.map { if (it.type == OtpType.HOTP) it.copy(nextCounter = maxima.getValue(OtpGeneratorIdentity.of(it))) else it }
-    }
-    private fun sameGenerator(a: OtpEntry, b: OtpEntry) = OtpGeneratorIdentity.of(a) == OtpGeneratorIdentity.of(b)
+    private fun sameGenerator(a: OtpEntry, b: OtpEntry) =
+        a.type == OtpType.HOTP && b.type == OtpType.HOTP && a.secret == b.secret
     private fun corrupt(): Nothing = throw VaultException(VaultFailure.CORRUPT_STORAGE)
 
     companion object {

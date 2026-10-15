@@ -8,13 +8,14 @@ import java.util.UUID
 
 enum class RestoreMode { MERGE, REPLACE }
 
-enum class RestoreFailure { ID_ALLOCATION_EXHAUSTED, ENTRY_LIMIT_EXCEEDED }
+enum class RestoreFailure { ID_ALLOCATION_EXHAUSTED, ENTRY_LIMIT_EXCEEDED, GROUP_LIMIT_EXCEEDED }
 
 /** Ошибка расчёта плана: ни один входной снимок при этом не изменяется. */
 class RestorePlanningException(val reason: RestoreFailure) : IllegalArgumentException(
     when (reason) {
         RestoreFailure.ID_ALLOCATION_EXHAUSTED -> "Не удалось получить свободный ID для восстановления"
         RestoreFailure.ENTRY_LIMIT_EXCEEDED -> "Восстановление превысит ограничение в 10 000 записей"
+        RestoreFailure.GROUP_LIMIT_EXCEEDED -> "Восстановление превысит ограничение в 10 000 групп"
     },
 )
 

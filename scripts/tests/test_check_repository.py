@@ -59,7 +59,8 @@ class RepositoryPolicyTest(unittest.TestCase):
             root = Path(directory)
             env = dict(os.environ, GIT_INDEX_FILE=str(root / "temporary-index"))
             subprocess.run(["git", "init", "--quiet", str(root)], check=True)
-            tracked = ["docs/backup.md", "strange\nname.txt", "$(touch SHOULD_NOT_EXIST).txt", ".env"]
+            unusual = "strange name.txt" if os.name == "nt" else "strange\nname.txt"
+            tracked = ["docs/backup.md", unusual, "$(touch SHOULD_NOT_EXIST).txt", ".env"]
             for name in tracked:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +70,12 @@ class RepositoryPolicyTest(unittest.TestCase):
             self.assertEqual(set(tracked), set(check_repository.tracked_paths(root, env=env)))
             self.assertEqual([".env"], check_repository.check_paths(check_repository.tracked_paths(root, env=env)))
             self.assertFalse((root / "SHOULD_NOT_EXIST").exists())
+
+    def test_nul_separated_git_output_preserves_newlines_on_every_platform(self):
+        from unittest.mock import patch
+        output = subprocess.CompletedProcess([], 0, stdout=b"docs/backup.md\0strange\nname.txt\0")
+        with patch.object(check_repository.subprocess, "run", return_value=output):
+            self.assertEqual(["docs/backup.md", "strange\nname.txt"], check_repository.tracked_paths(Path(".")))
 
     def test_cli_rejects_forbidden_tracked_path_with_nonzero_exit(self):
         with tempfile.TemporaryDirectory() as directory:

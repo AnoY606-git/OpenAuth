@@ -53,13 +53,15 @@ class LocalVaultFile(
             syncDirectory(atomic.baseFile.parentFile!!)
             FileOutputStream(pending).use { writeBytes(it, replacement); it.fd.sync() }
             if (!pending.readBytes().contentEquals(replacement)) throw IOException("Запись восстановления не подтверждена")
-            // Единственная точка commit. После rename нет операций, способных превратить успех в ошибку.
+            // Publish the installed key before the durability barrier: if fsync fails after rename,
+            // recovery must retain that key and both ciphertexts rather than delete an installed key.
             if (read()?.contentEquals(expected) != true) throw VaultException(VaultFailure.LOCKED)
             commit {
                 java.nio.file.Files.move(pending.toPath(), atomic.baseFile.toPath(),
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
                 committed = true
             }
+            syncDirectory(atomic.baseFile.parentFile!!)
         } finally {
             pending.delete()
             if (!committed) preserved.delete()
