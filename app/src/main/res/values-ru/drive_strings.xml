@@ -1,0 +1,32 @@
+<resources>
+    <string name="drive_title">Google Drive</string>
+    <string name="drive_description">Автоматические зашифрованные копии в вашем Google-аккаунте. Доступ только к скрытой папке Open Auth. Локальные и файловые копии работают без Google.</string>
+    <string name="drive_connect">Подключить Google-аккаунт</string>
+    <string name="drive_change_account">Сменить Google-аккаунт</string>
+    <string name="drive_disconnect">Отключить, сохранив облачные копии</string>
+    <string name="drive_disconnected">Автоматические копии выключены</string>
+    <string name="drive_wait_unlock">Подключено. Разблокируйте хранилище для первого снимка.</string>
+    <string name="drive_wait_password">Сначала задайте пароль или PIN резервной копии выше.</string>
+    <string name="drive_pending">Зашифрованный снимок ожидает отправки</string>
+    <string name="drive_uploading">Отправляем зашифрованную копию…</string>
+    <string name="drive_uploaded">Последний подготовленный снимок загружен</string>
+    <string name="drive_retrying">Отправка отложена. Повторим при доступной сети и квоте.</string>
+    <string name="drive_upload_now">Разблокировать и создать копию сейчас</string>
+    <string name="drive_auth_required">Нужно подтвердить доступ к Google Drive</string>
+    <string name="drive_authorize_again">Подтвердить доступ снова</string>
+    <string name="drive_unavailable">Google Play services недоступны. Можно использовать файловую копию.</string>
+    <string name="drive_setup_error">Google не предоставил доступ. Проверьте сеть, аккаунт и регистрацию этой сборки у разработчика.</string>
+    <string name="drive_operation_failed">Операция не завершена. Проверьте доступ и повторите.</string>
+    <string name="drive_consent_cancelled">Подключение отменено. Текущие настройки сохранены.</string>
+    <string name="drive_restore">Выбрать копию из облака</string>
+    <string name="drive_no_history">В этом аккаунте пока нет копий Open Auth</string>
+    <string name="drive_snapshot_details">Ревизия %1$d · источник %2$s</string>
+    <string name="drive_restore_ready">Копия скачана. Продолжите восстановление выше: пароль, предварительный просмотр, подтверждение.</string>
+    <string name="drive_delete_history">Удалить историю этого телефона</string>
+    <string name="drive_delete_explanation">Автоматические копии будут отключены. Все найденные облачные снимки этой установки в выбранном аккаунте будут удалены без возможности отмены. Снимки других установок сохранятся. При сбое удаление может быть частичным; для повторной попытки подключите тот же аккаунт.</string>
+    <string name="drive_delete_confirm">Отключить и удалить</string>
+    <string name="drive_history_deleted">История удалена, автоматические копии отключены</string>
+    <string name="drive_cancel">Отмена</string>
+    <string name="drive_close">Закрыть</string>
+    <string name="drive_unknown_date">Дата недоступна</string>
+</resources>

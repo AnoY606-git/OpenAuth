@@ -1,0 +1,32 @@
+<resources>
+    <string name="drive_title">Google Drive</string>
+    <string name="drive_description">Automatic encrypted backups in your Google account. Access is limited to the hidden Open Auth folder. Local codes and file backups work without Google.</string>
+    <string name="drive_connect">Connect Google account</string>
+    <string name="drive_change_account">Change Google account</string>
+    <string name="drive_disconnect">Disconnect and keep cloud backups</string>
+    <string name="drive_disconnected">Automatic backups are off</string>
+    <string name="drive_wait_unlock">Connected. Unlock the vault to prepare the first snapshot.</string>
+    <string name="drive_wait_password">First set a backup password or PIN above.</string>
+    <string name="drive_pending">An encrypted snapshot is waiting to upload</string>
+    <string name="drive_uploading">Uploading encrypted backup…</string>
+    <string name="drive_uploaded">The latest prepared snapshot has been uploaded</string>
+    <string name="drive_retrying">Upload postponed. We will retry when network and quota allow.</string>
+    <string name="drive_upload_now">Unlock and create a backup now</string>
+    <string name="drive_auth_required">Confirm access to Google Drive</string>
+    <string name="drive_authorize_again">Authorize again</string>
+    <string name="drive_unavailable">Google Play services are unavailable. You can use a file backup.</string>
+    <string name="drive_setup_error">Google did not grant access. Check the network, account and developer registration for this build.</string>
+    <string name="drive_operation_failed">The operation did not finish. Check access and try again.</string>
+    <string name="drive_consent_cancelled">Connection cancelled. Your current settings are unchanged.</string>
+    <string name="drive_restore">Choose a cloud backup</string>
+    <string name="drive_no_history">This account has no Open Auth backups yet</string>
+    <string name="drive_snapshot_details">Revision %1$d · source %2$s</string>
+    <string name="drive_restore_ready">Backup downloaded. Continue above: password, preview and confirmation.</string>
+    <string name="drive_delete_history">Delete this phone’s backup history</string>
+    <string name="drive_delete_explanation">Automatic backups will be disabled. All discovered cloud snapshots from this installation in the selected account will be permanently deleted. Other installations are unaffected. A failure may leave some snapshots; reconnect the same account to retry.</string>
+    <string name="drive_delete_confirm">Disable and delete</string>
+    <string name="drive_history_deleted">History deleted; automatic backups are off</string>
+    <string name="drive_cancel">Cancel</string>
+    <string name="drive_close">Close</string>
+    <string name="drive_unknown_date">Date unavailable</string>
+</resources>

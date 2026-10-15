@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "OpenAuth"
-include(":core")
+include(":core", ":app")
