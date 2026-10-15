@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.openauth.app.drive.DriveFeature
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,6 +58,7 @@ fun BackupScreen(
     var message by remember { mutableStateOf<Int?>(null) }
     var action by remember { mutableStateOf<CredentialAction?>(null) }
     var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf(RestoreMode.MERGE) }
     var recovery by remember { mutableStateOf(false) }
@@ -86,13 +88,13 @@ fun BackupScreen(
         coordinator.files.stageImport(uri)
     }
     LaunchedEffect(vault) {
-        if (vault !is VaultState.Unlocked) { password = ""; action = null; plan = null; coordinator.cancelRestore() }
+        if (vault !is VaultState.Unlocked) { password = ""; confirmation = ""; action = null; plan = null; coordinator.cancelRestore() }
     }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
                 operation?.cancel()
-                password = ""; action = null; plan = null
+                password = ""; confirmation = ""; action = null; plan = null
                 scope.launch { coordinator.cancelRestore() }
             }
         }
@@ -138,13 +140,13 @@ fun BackupScreen(
         cloudContent()
     }
     if (action != null) AlertDialog(
-        onDismissRequest = { if (!busy) { action = null; password = "" } },
+        onDismissRequest = { if (!busy) { action = null; password = ""; confirmation = "" } },
         title = { Text(stringResource(if (action == CredentialAction.RESTORE) R.string.backup_restore_password else R.string.backup_set_password)) },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             message?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .toggleable(value = pin, enabled = !busy, role = Role.Checkbox, onValueChange = { pin = it; password = "" })
+                    .toggleable(value = pin, enabled = !busy, role = Role.Checkbox, onValueChange = { pin = it; password = ""; confirmation = "" })
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -154,8 +156,18 @@ fun BackupScreen(
             Text(stringResource(if (pin) R.string.backup_pin_warning else R.string.backup_password_rule))
             OutlinedTextField(value = password, onValueChange = { if (it.length <= 1024) password = it }, enabled = !busy,
                 label = { Text(stringResource(if (pin) R.string.backup_pin_label else R.string.backup_password_label)) },
-                visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth().testTag("backup-password"),
                 keyboardOptions = KeyboardOptions(keyboardType = if (pin) KeyboardType.NumberPassword else KeyboardType.Password))
+            if (action != CredentialAction.RESTORE) {
+                val mismatch = confirmation.isNotEmpty() && confirmation != password
+                OutlinedTextField(value = confirmation, onValueChange = { if (it.length <= 1024) confirmation = it }, enabled = !busy,
+                    label = { Text(stringResource(if (pin) R.string.backup_pin_confirmation else R.string.backup_password_confirmation)) },
+                    isError = mismatch,
+                    supportingText = if (mismatch) ({ Text(stringResource(R.string.backup_confirmation_mismatch)) }) else null,
+                    visualTransformation = PasswordVisualTransformation(), singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("backup-password-confirmation"),
+                    keyboardOptions = KeyboardOptions(keyboardType = if (pin) KeyboardType.NumberPassword else KeyboardType.Password))
+            }
             if (action == CredentialAction.RESTORE && recovery) Text(stringResource(R.string.backup_recovery_explanation))
             else if (action == CredentialAction.RESTORE) {
                 Column(Modifier.selectableGroup()) {
@@ -173,9 +185,10 @@ fun BackupScreen(
                 }
             } else Text(stringResource(R.string.backup_rotation_notice))
         } },
-        confirmButton = { Button(enabled = !busy && password.isNotEmpty(), onClick = {
+        confirmButton = { Button(enabled = !busy && password.isNotEmpty() && (action == CredentialAction.RESTORE || confirmation == password), onClick = {
             val selected = action ?: return@Button
-            val chars = password.toCharArray(); password = ""
+            if (selected != CredentialAction.RESTORE && confirmation != password) return@Button
+            val chars = password.toCharArray(); password = ""; confirmation = ""
             val credential = try { if (pin) BackupCredential.pin(chars) else BackupCredential.password(chars) }
             catch (_: BackupException) { message = R.string.backup_credential_rule_error; null }
             finally { chars.fill('\u0000') }
@@ -196,7 +209,7 @@ fun BackupScreen(
                 }
             }
         }) { Text(stringResource(R.string.backup_continue)) } },
-        dismissButton = { TextButton(enabled = !busy, onClick = { action = null; password = "" }) { Text(stringResource(R.string.backup_cancel)) } },
+        dismissButton = { TextButton(enabled = !busy, onClick = { action = null; password = ""; confirmation = "" }) { Text(stringResource(R.string.backup_cancel)) } },
     )
     plan?.let { ready -> RestorePreviewScreen(ready, mode, busy,
         onConfirm = { execute { coordinator.commitRestore(ready, onAuthenticateRecovery); plan = null; coordinator.files.clearImport(); message = R.string.backup_restore_success } },

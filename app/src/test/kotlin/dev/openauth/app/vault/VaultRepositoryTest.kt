@@ -181,4 +181,63 @@ class VaultRepositoryTest {
         assertThrows(VaultException::class.java) { runBlocking { repo.unlock() } }
         assertEquals(VaultState.Unavailable(VaultFailure.CORRUPT_STORAGE), repo.state.value)
     }
+
+    @Test fun hotpTypeRoundTripCannotResetPreviouslyIssuedCounter() = runTest {
+        repo.initialize(); val first = entry(); add(first)
+        assertEquals("755224", repo.issueHotp(first.id))
+        repo.mutate { VaultSnapshot(revision = it.revision, entries = listOf(first.copy(type = OtpType.TOTP)), groups = emptyList()) }
+        repo.lock(); repo.unlock()
+        repo.mutate { VaultSnapshot(revision = it.revision, entries = listOf(first), groups = emptyList()) }
+        assertEquals(1L, snapshot().entries.single().nextCounter)
+        assertEquals("287082", repo.issueHotp(first.id))
+    }
+
+    @Test fun hotpDigitsRoundTripAndAliasesShareOneCounterFloor() = runTest {
+        repo.initialize(); val first = entry(); add(first)
+        assertEquals("755224", repo.issueHotp(first.id))
+        repo.mutate { VaultSnapshot(revision = it.revision, entries = listOf(first.copy(digits = 8)), groups = emptyList()) }
+        assertEquals(1L, snapshot().entries.single().nextCounter)
+        val alias = entry().copy(digits = 6)
+        add(alias)
+        assertEquals("94287082", repo.issueHotp(first.id))
+        assertEquals(listOf(2L, 2L), snapshot().entries.map { it.nextCounter })
+        assertEquals("359152", repo.issueHotp(alias.id))
+    }
+
+    @Test fun deletingLastAliasAndReimportingAfterRestartCannotReuseCode() = runTest {
+        repo.initialize(); val first = entry(); add(first)
+        assertEquals("755224", repo.issueHotp(first.id))
+        repo.mutate { VaultSnapshot(revision = it.revision, entries = emptyList(), groups = emptyList()) }
+        assertTrue(snapshot().entries.isEmpty())
+        assertEquals(1L, snapshot().hotpCounterFloors.single().nextCounter)
+        repo.lock(); repo.unlock()
+        add(first.copy(id = UUID.randomUUID()))
+        assertEquals("287082", repo.issueHotp(snapshot().entries.single().id))
+    }
+
+    @Test fun failedCounterWriteDoesNotPublishHistoryOrReturnCode() = runTest {
+        repo.initialize(); val first = entry(); add(first)
+        val original = storage.bytes!!.copyOf()
+        storage.fail = true
+        assertThrows(IOException::class.java) { runBlocking { repo.issueHotp(first.id) } }
+        assertTrue(snapshot().hotpCounterFloors.isEmpty())
+        assertArrayEquals(original, storage.bytes)
+        storage.fail = false
+        assertEquals("755224", repo.issueHotp(first.id))
+    }
+
+    @Test fun legacySchemaOneSeedsHistoryBeforeFirstDeletion() = runTest {
+        val key = VaultCipher.newKey()
+        val json = dev.openauth.core.backup.SnapshotJsonCodec.encode(VaultSnapshot(1, 0, listOf(entry(9)), emptyList()))
+        val plaintext = java.nio.ByteBuffer.allocate(12 + json.size).putInt(1).putInt(json.size).put(json).putInt(0).array()
+        val header = java.nio.ByteBuffer.allocate(8 + key.size).putInt(0x4f415631).putInt(key.size).put(key).array()
+        storage.bytes = header + VaultCipher.encrypt(key, plaintext, header)
+        key.fill(0); json.fill(0); plaintext.fill(0)
+        repo.unlock()
+        assertEquals(9L, snapshot().hotpCounterFloors.single().nextCounter)
+        val first = snapshot().entries.single()
+        repo.mutate { VaultSnapshot(revision = it.revision, entries = emptyList(), groups = emptyList()) }
+        repo.lock(); repo.unlock(); add(first.copy(nextCounter = 0))
+        assertEquals(9L, snapshot().entries.single().nextCounter)
+    }
 }

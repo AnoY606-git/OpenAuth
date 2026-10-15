@@ -69,6 +69,7 @@ class OpenAuthViewModel(val repository: VaultRepository) {
         require(checked.isNotEmpty() && checked.length <= 256 && checked.none { it.isISOControl() })
         val id = UUID.randomUUID()
         repository.mutate { current ->
+            require(current.groups.size < VaultSnapshot.MAX_GROUPS) { "Достигнут предел числа групп" }
             require(current.groups.none { it.name.equals(checked, true) })
             VaultSnapshot(revision = current.revision, entries = current.entries, groups = current.groups + EntryGroup(id, checked))
         }

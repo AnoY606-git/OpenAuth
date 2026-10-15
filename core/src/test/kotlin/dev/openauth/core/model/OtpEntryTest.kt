@@ -150,7 +150,7 @@ class OtpEntryTest {
 
     @Test
     fun rejectsUnsupportedSchemaAndNegativeRevision() {
-        for (schema in listOf(0, 2)) {
+        for (schema in listOf(0, 3)) {
             assertThrows(IllegalArgumentException::class.java) {
                 VaultSnapshot(schemaVersion = schema, revision = 0, entries = emptyList(), groups = emptyList())
             }

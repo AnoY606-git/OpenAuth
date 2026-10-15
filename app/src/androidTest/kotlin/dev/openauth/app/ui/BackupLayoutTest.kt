@@ -130,7 +130,8 @@ class BackupLayoutTest {
         val label = context.getString(R.string.backup_use_pin)
         compose.onNodeWithText(label, useUnmergedTree = true).performScrollTo().performTouchInput { click() }
         compose.onNodeWithText(context.getString(R.string.backup_pin_label)).assertIsDisplayed()
-        compose.onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        compose.onNodeWithTag("backup-password").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        compose.onNodeWithTag("backup-password-confirmation").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         compose.onNode(isToggleable()).assertIsOn()
         compose.onNodeWithText(label, useUnmergedTree = true).performTouchInput { click() }
         compose.onNode(hasText(context.getString(R.string.backup_password_label)) and hasSetTextAction()).assertIsDisplayed()
@@ -152,6 +153,22 @@ class BackupLayoutTest {
             .performScrollTo().performTouchInput { click() }
         compose.onAllNodes(isSelectable()).onFirst().assertIsSelected()
         compose.onAllNodes(isSelectable()).onLast().assertIsNotSelected()
+    }
+
+    @Test fun settingPasswordRequiresMatchingConfirmationAndCancelClearsBothInputs() {
+        compose.setContent { OpenAuthTheme { BackupScreen(coordinator, repository, onUnlock = {}) } }
+        compose.onNodeWithText(context.getString(R.string.backup_configure)).performScrollTo().performClick()
+        compose.onNodeWithTag("backup-password").performScrollTo().performTextInput("Synthetic password")
+        compose.onNodeWithText(context.getString(R.string.backup_continue)).assertIsNotEnabled()
+        compose.onNodeWithTag("backup-password-confirmation").performScrollTo().performTextInput("Different password")
+        compose.onNodeWithText(context.getString(R.string.backup_continue)).assertIsNotEnabled()
+        compose.onNodeWithTag("backup-password-confirmation").performTextReplacement("Synthetic password")
+        compose.onNodeWithText(context.getString(R.string.backup_continue)).assertIsEnabled()
+        compose.onNodeWithText(context.getString(R.string.backup_cancel)).performClick()
+        compose.onNodeWithText(context.getString(R.string.backup_configure)).performScrollTo().performClick()
+        for (tag in listOf("backup-password", "backup-password-confirmation")) {
+            compose.onNodeWithTag(tag).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        }
     }
 
     private data class Window(val width: Int, val height: Int, val fontScale: Float)

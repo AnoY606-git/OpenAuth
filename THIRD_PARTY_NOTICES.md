@@ -12,18 +12,18 @@
 | --- | --- | --- |
 | Kotlin standard library | 2.2.21 | [Apache-2.0, JetBrains](https://github.com/JetBrains/kotlin/blob/v2.2.21/license/LICENSE.txt) |
 | kotlinx.serialization JSON и core | 1.9.0 | [Apache-2.0](https://github.com/Kotlin/kotlinx.serialization/blob/v1.9.0/LICENSE.txt) |
-| kotlinx.coroutines Android/core | 1.10.2 | [Apache-2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/LICENSE.txt) |
-| Bouncy Castle `bcprov-jdk18on` | 1.83 | [Лицензия Bouncy Castle (MIT)](https://github.com/bcgit/bc-java/blob/r1rv83/LICENSE.html), полный текст ниже |
+| kotlinx.coroutines Android/core | 1.11.0 | [Apache-2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/1.11.0/LICENSE.txt) |
+| Bouncy Castle `bcprov-jdk18on` | 1.86 | [Лицензия Bouncy Castle (MIT)](https://github.com/bcgit/bc-java/blob/r1rv86/LICENSE.html), полный текст ниже |
 | OkHttp | 4.12.0 | [Apache-2.0, Square](https://github.com/square/okhttp/blob/parent-4.12.0/LICENSE.txt) |
 | Okio (зависимость OkHttp) | 3.6.0 | [Apache-2.0, Square](https://github.com/square/okio/blob/parent-3.6.0/LICENSE.txt) |
-| AndroidX Compose Material 3, UI, Foundation | BOM 2025.08.01 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt); [состав BOM](https://developer.android.com/develop/ui/compose/bom/bom-mapping) |
-| AndroidX Activity Compose | 1.10.1 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX Fragment KTX | 1.8.9 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX Compose Material 3, UI, Foundation | BOM 2026.06.01 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt); [состав BOM](https://developer.android.com/develop/ui/compose/bom/bom-mapping) |
+| AndroidX Activity Compose | 1.13.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX Fragment KTX | 1.9.1 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX Biometric | 1.1.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX Lifecycle runtime KTX, runtime Compose, viewmodel Compose и process | 2.9.2 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX WorkManager runtime KTX | 2.10.5 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX CameraX core, camera2, lifecycle и view | 1.4.2 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| ZXing core | 3.5.3 | [Apache-2.0, ZXing authors](https://github.com/zxing/zxing/blob/zxing-3.5.3/LICENSE) |
+| AndroidX Lifecycle runtime KTX, runtime Compose, viewmodel Compose и process | 2.10.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX WorkManager runtime KTX | 2.12.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX CameraX core, camera2, lifecycle и view | 1.6.2 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| ZXing core | 3.5.4 | [Apache-2.0, ZXing authors](https://github.com/zxing/zxing/blob/zxing-3.5.4/LICENSE) |
 | Google Play services Auth | 22.0.0 | Android Software Development Kit License: [условия SDK](https://developer.android.com/studio/terms.html), [метаданные Google Maven](https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-auth/22.0.0/play-services-auth-22.0.0.pom) |
 
 AndroidX использует дополнительные транзитивные компоненты того же проекта.
@@ -43,10 +43,10 @@ AndroidX использует дополнительные транзитивн�
 | --- | --- | --- |
 | JUnit 4 | 4.13.2 | [EPL-1.0](https://github.com/junit-team/junit4/blob/r4.13.2/LICENSE-junit.txt), используется только тестами |
 | MockWebServer | 4.12.0 | [Apache-2.0, Square](https://github.com/square/okhttp/blob/parent-4.12.0/LICENSE.txt) |
-| kotlinx.coroutines-test | 1.10.2 | [Apache-2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/LICENSE.txt) |
-| AndroidX WorkManager testing (только тесты) | 2.10.5 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX Test runner / rules / ext JUnit / UI Automator | 1.6.2 / 1.6.1 / 1.2.1 / 2.3.0 | [Apache-2.0, Android Open Source Project](https://github.com/android/android-test/blob/main/LICENSE) |
-| AndroidX Compose UI test JUnit4 и test manifest | BOM 2025.08.01 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| kotlinx.coroutines-test | 1.11.0 | [Apache-2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/1.11.0/LICENSE.txt) |
+| AndroidX WorkManager testing (только тесты) | 2.12.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX Test runner / rules / ext JUnit / UI Automator | 1.7.0 / 1.7.0 / 1.3.0 / 2.4.0 | [Apache-2.0, Android Open Source Project](https://github.com/android/android-test/blob/main/LICENSE) |
+| AndroidX Compose UI test JUnit4 и test manifest | BOM 2026.06.01 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | Gradle Wrapper | 8.13 | [Apache-2.0, Gradle](https://github.com/gradle/gradle/blob/v8.13.0/LICENSE); авторство стартовых скриптов сохранено |
 | Android Gradle Plugin | 8.13.2 | [Apache-2.0, метаданные Google Maven](https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.13.2/gradle-8.13.2.pom) |
 | Kotlin Gradle / Compose / serialization plugins | 2.2.21 | [Apache-2.0, JetBrains](https://github.com/JetBrains/kotlin/blob/v2.2.21/license/LICENSE.txt) |
@@ -57,12 +57,12 @@ AndroidX использует дополнительные транзитивн�
 его условий. Происхождение скриптов SplitBox описано в
 [ATTRIBUTION.md](ATTRIBUTION.md).
 
-## Bouncy Castle 1.83
+## Bouncy Castle 1.86
 
 Канонический текст из исходного проекта:
 
 ```text
-Copyright (c) 2000-2023 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org)
+Copyright (c) 2000-2026 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 and associated documentation files (the "Software"), to deal in the Software without restriction,
