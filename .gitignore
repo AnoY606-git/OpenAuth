@@ -1,0 +1,42 @@
+# Локальные материалы работы агентов и разработки
+docs/superpowers/
+docs/internal/
+.development/
+.agents/
+.codex/
+AGENTS.md
+**/AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# Локальные инструменты и настройки
+.toolchain/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+.env
+.env.*
+!.env.example
+
+# Результаты сборки и временные файлы
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.log
+*.tmp
+*.hprof
+__pycache__/
+*.pyc
+.DS_Store
+
+# Ключи подписи, личные параметры и пользовательские копии
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+*.p12
+*.pem
+*.oab
