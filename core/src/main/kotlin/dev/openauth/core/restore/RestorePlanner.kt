@@ -15,12 +15,28 @@ object RestorePlanner {
         mode: RestoreMode,
         newId: () -> UUID,
     ): RestorePlan {
+        // Максимум учитывает все псевдонимы генератора, независимо от режима и порядка.
+        val maximumHotpCounters = HashMap<GeneratorIdentity, Long>()
+        for (snapshot in listOf(current, incoming)) {
+            for (entry in snapshot.entries) {
+                if (entry.type == OtpType.HOTP) {
+                    val identity = GeneratorIdentity.of(entry)
+                    maximumHotpCounters[identity] = maxOf(maximumHotpCounters[identity] ?: 0, entry.nextCounter)
+                }
+            }
+        }
+        fun withMaximumCounter(entry: OtpEntry): OtpEntry {
+            if (entry.type != OtpType.HOTP) return entry
+            val maximum = maximumHotpCounters.getValue(GeneratorIdentity.of(entry))
+            return if (entry.nextCounter == maximum) entry else entry.copy(nextCounter = maximum)
+        }
+
         if (mode == RestoreMode.REPLACE) {
             return RestorePlan(
                 result = VaultSnapshot(
                     schemaVersion = incoming.schemaVersion,
                     revision = current.revision,
-                    entries = incoming.entries,
+                    entries = incoming.entries.map(::withMaximumCounter),
                     groups = incoming.groups,
                 ),
                 added = incoming.entries.size,
@@ -63,7 +79,7 @@ object RestorePlanner {
             importedGroupIds[group.id] = restored.id
         }
 
-        val entries = current.entries.toMutableList()
+        val entries = current.entries.map(::withMaximumCounter).toMutableList()
         val entryIds = current.entries.mapTo(HashSet()) { it.id }
         val identityIndices = HashMap<GeneratorIdentity, Int>()
         current.entries.forEachIndexed { index, entry ->
@@ -79,10 +95,6 @@ object RestorePlanner {
             if (duplicateIndex != null) {
                 duplicates++
                 val local = entries[duplicateIndex]
-                // Метаданные локальной записи остаются неизменны, HOTP никогда не откатывается.
-                if (imported.type == OtpType.HOTP && imported.nextCounter > local.nextCounter) {
-                    entries[duplicateIndex] = local.copy(nextCounter = imported.nextCounter)
-                }
                 restoredId = local.id
             } else {
                 if (entries.size >= 10_000) {
@@ -93,7 +105,7 @@ object RestorePlanner {
                 } else {
                     imported.id
                 }
-                val restored = imported.copy(
+                val restored = withMaximumCounter(imported).copy(
                     id = restoredId,
                     groupId = imported.groupId?.let { importedGroupIds.getValue(it) },
                 )

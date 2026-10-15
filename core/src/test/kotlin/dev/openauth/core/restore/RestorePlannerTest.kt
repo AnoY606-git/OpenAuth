@@ -143,13 +143,14 @@ class RestorePlannerTest {
     }
 
     @Test
-    fun replacePreservesIncomingSnapshotContentsWithoutMutatingCurrent() {
+    fun replacePreservesIncomingMetadataAndMaximumKnownHotpCounterWithoutMutatingCurrent() {
         val local = entry(1, type = OtpType.HOTP, nextCounter = 99)
         val imported = entry(1, type = OtpType.HOTP, nextCounter = 5).copy(groupId = id(10))
         val current = snapshot(local, revision = 7)
         val incoming = snapshot(imported, groups = listOf(EntryGroup(id(10), "Imported")), revision = 2)
         val plan = RestorePlanner.plan(current, incoming, RestoreMode.REPLACE) { error("Новый ID не нужен") }
-        assertEquals(listOf(imported), plan.result.entries)
+        assertEquals(listOf(imported.copy(nextCounter = 99)), plan.result.entries)
+        assertEquals(listOf(imported), incoming.entries)
         assertEquals(incoming.groups, plan.result.groups)
         assertEquals(7L, plan.result.revision)
         assertEquals(listOf(local), current.entries)
@@ -158,6 +159,79 @@ class RestorePlannerTest {
         assertEquals(0, plan.duplicates)
         assertEquals(0, plan.remappedIds)
         assertEquals(listOf(id(1)), plan.hotpWarnings)
+    }
+
+    @Test
+    fun mergeRaisesEveryRetainedHotpAliasToMaximumAcrossAllSnapshotsInAnyOrder() {
+        val first = entry(1, type = OtpType.HOTP, nextCounter = 5).copy(issuer = "First", favorite = true)
+        val second = entry(2, type = OtpType.HOTP, nextCounter = 99).copy(issuer = "Second", sortIndex = 7)
+        val importedFirst = entry(3, type = OtpType.HOTP, nextCounter = 9)
+        for ((lastCounter, expectedCounter) in listOf(12L to 99L, 120L to 120L)) {
+            val importedSecond = entry(4, type = OtpType.HOTP, nextCounter = lastCounter)
+            for (locals in listOf(listOf(first, second), listOf(second, first))) {
+                for (imports in listOf(listOf(importedFirst, importedSecond), listOf(importedSecond, importedFirst))) {
+                    val current = snapshot(*locals.toTypedArray())
+                    val incoming = snapshot(*imports.toTypedArray())
+                    val plan = merge(current, incoming)
+                    assertEquals(locals.map { it.copy(nextCounter = expectedCounter) }, plan.result.entries)
+                    assertEquals(locals, current.entries)
+                    assertEquals(imports, incoming.entries)
+                    assertEquals(0, plan.added)
+                    assertEquals(2, plan.duplicates)
+                    assertEquals(listOf(locals.first().id), plan.hotpWarnings)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun mergeNormalizesExistingHotpAliasesEvenWithoutIncomingEntries() {
+        val first = entry(1, type = OtpType.HOTP, nextCounter = 5)
+        val second = entry(2, type = OtpType.HOTP, nextCounter = 99)
+        val unrelated = entry(3, secret = secret(2), type = OtpType.HOTP, nextCounter = 250)
+        val totp = entry(4, nextCounter = 400)
+        val plan = merge(snapshot(first, second, unrelated, totp), snapshot())
+        assertEquals(listOf(first.copy(nextCounter = 99), second, unrelated, totp), plan.result.entries)
+        assertEquals(emptyList<UUID>(), plan.hotpWarnings)
+    }
+
+    @Test
+    fun replaceUsesGeneratorIdentityAndAllAliasesRegardlessOfOrder() {
+        val first = entry(1, type = OtpType.HOTP, nextCounter = 5)
+        val second = entry(2, type = OtpType.HOTP, nextCounter = 99)
+        val unrelated = entry(5, secret = secret(2), type = OtpType.HOTP, nextCounter = 250)
+        val importedFirst = entry(3, type = OtpType.HOTP, nextCounter = 9).copy(issuer = "Incoming", groupId = id(10))
+        for ((lastCounter, expectedCounter) in listOf(12L to 99L, 120L to 120L)) {
+            val importedSecond = entry(4, type = OtpType.HOTP, nextCounter = lastCounter).copy(favorite = true)
+            for (locals in listOf(listOf(first, second, unrelated), listOf(unrelated, second, first))) {
+                for (imports in listOf(listOf(importedFirst, importedSecond), listOf(importedSecond, importedFirst))) {
+                    val current = snapshot(*locals.toTypedArray())
+                    val groups = listOf(EntryGroup(id(10), "Incoming group"))
+                    val incoming = snapshot(*imports.toTypedArray(), groups = groups)
+                    val plan = RestorePlanner.plan(current, incoming, RestoreMode.REPLACE) { error("Новый ID не нужен") }
+                    assertEquals(imports.map { it.copy(nextCounter = expectedCounter) }, plan.result.entries)
+                    assertEquals(groups, plan.result.groups)
+                    assertEquals(imports, incoming.entries)
+                    assertEquals(locals, current.entries)
+                    assertEquals(2, plan.added)
+                    assertEquals(0, plan.duplicates)
+                    assertEquals(imports.map { it.id }, plan.hotpWarnings)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun replaceNormalizesIncomingHotpAliasesWithoutCurrentMatch() {
+        val first = entry(1, type = OtpType.HOTP, nextCounter = 5)
+        val second = entry(2, type = OtpType.HOTP, nextCounter = 99)
+        val unrelated = entry(3, secret = secret(2), type = OtpType.HOTP, nextCounter = 250)
+        val totp = entry(4, nextCounter = 400)
+        val plan = RestorePlanner.plan(snapshot(), snapshot(first, second, unrelated, totp), RestoreMode.REPLACE) {
+            error("Новый ID не нужен")
+        }
+        assertEquals(listOf(first.copy(nextCounter = 99), second, unrelated, totp), plan.result.entries)
+        assertEquals(4, plan.added)
     }
 
     @Test
