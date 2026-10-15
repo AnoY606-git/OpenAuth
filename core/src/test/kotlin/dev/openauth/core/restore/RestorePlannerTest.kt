@@ -79,6 +79,54 @@ class RestorePlannerTest {
     }
 
     @Test
+    fun hotpPeriodDifferenceStillDeduplicatesAndPreservesMaximumCounter() {
+        val local = entry(1, type = OtpType.HOTP, nextCounter = 5).copy(issuer = "Local")
+        val imported = entry(2, type = OtpType.HOTP, nextCounter = 9).copy(periodSeconds = 60, issuer = "Imported")
+        val plan = merge(snapshot(local), snapshot(imported))
+        assertEquals(listOf(local.copy(nextCounter = 9)), plan.result.entries)
+        assertEquals(0, plan.added)
+        assertEquals(1, plan.duplicates)
+        assertEquals(listOf(local.id), plan.hotpWarnings)
+    }
+
+    @Test
+    fun replaceWithDifferentHotpPeriodPreservesPreviouslyKnownCounterFloor() {
+        val local = entry(1, type = OtpType.HOTP, nextCounter = 99)
+        val imported = entry(2, type = OtpType.HOTP, nextCounter = 5).copy(periodSeconds = 60)
+        val plan = RestorePlanner.plan(snapshot(local), snapshot(imported), RestoreMode.REPLACE) {
+            error("Новый ID не нужен")
+        }
+        assertEquals(listOf(imported.copy(nextCounter = 99)), plan.result.entries)
+        assertEquals(1, plan.added)
+        assertEquals(0, plan.duplicates)
+        assertEquals(listOf(imported.id), plan.hotpWarnings)
+    }
+
+    @Test
+    fun bothModesNormalizeHotpAliasesAcrossAllPeriodsAndKeepModeSpecificDeduplication() {
+        val locals = listOf(
+            entry(1, type = OtpType.HOTP, nextCounter = 5),
+            entry(2, type = OtpType.HOTP, nextCounter = 99).copy(periodSeconds = 60),
+        )
+        for (lastCounter in listOf(12L, 120L)) {
+            val imports = listOf(
+                entry(3, type = OtpType.HOTP, nextCounter = 9).copy(periodSeconds = 120),
+                entry(4, type = OtpType.HOTP, nextCounter = lastCounter).copy(periodSeconds = 15),
+            )
+            val expectedCounter = if (lastCounter == 12L) 99L else 120L
+            for (mode in RestoreMode.entries) {
+                val plan = RestorePlanner.plan(snapshot(*locals.toTypedArray()), snapshot(*imports.toTypedArray()), mode) {
+                    error("Новый ID не нужен")
+                }
+                val retained = if (mode == RestoreMode.MERGE) locals else imports
+                assertEquals(retained.map { it.copy(nextCounter = expectedCounter) }, plan.result.entries)
+                assertEquals(if (mode == RestoreMode.MERGE) 0 else 2, plan.added)
+                assertEquals(if (mode == RestoreMode.MERGE) 2 else 0, plan.duplicates)
+            }
+        }
+    }
+
+    @Test
     fun groupIdCollisionRemapsIncomingReferences() {
         val local = entry(1).copy(groupId = id(10))
         val imported = entry(2, secret = secret(2)).copy(groupId = id(10))

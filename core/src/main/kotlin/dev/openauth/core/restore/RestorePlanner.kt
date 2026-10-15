@@ -1,8 +1,7 @@
 package dev.openauth.core.restore
 
-import dev.openauth.core.model.HashAlgorithm
 import dev.openauth.core.model.OtpEntry
-import dev.openauth.core.model.OtpSecret
+import dev.openauth.core.model.OtpGeneratorIdentity
 import dev.openauth.core.model.OtpType
 import dev.openauth.core.model.VaultSnapshot
 import java.util.UUID
@@ -16,18 +15,18 @@ object RestorePlanner {
         newId: () -> UUID,
     ): RestorePlan {
         // Максимум учитывает все псевдонимы генератора, независимо от режима и порядка.
-        val maximumHotpCounters = HashMap<GeneratorIdentity, Long>()
+        val maximumHotpCounters = HashMap<OtpGeneratorIdentity, Long>()
         for (snapshot in listOf(current, incoming)) {
             for (entry in snapshot.entries) {
                 if (entry.type == OtpType.HOTP) {
-                    val identity = GeneratorIdentity.of(entry)
+                    val identity = OtpGeneratorIdentity.of(entry)
                     maximumHotpCounters[identity] = maxOf(maximumHotpCounters[identity] ?: 0, entry.nextCounter)
                 }
             }
         }
         fun withMaximumCounter(entry: OtpEntry): OtpEntry {
             if (entry.type != OtpType.HOTP) return entry
-            val maximum = maximumHotpCounters.getValue(GeneratorIdentity.of(entry))
+            val maximum = maximumHotpCounters.getValue(OtpGeneratorIdentity.of(entry))
             return if (entry.nextCounter == maximum) entry else entry.copy(nextCounter = maximum)
         }
 
@@ -81,15 +80,15 @@ object RestorePlanner {
 
         val entries = current.entries.map(::withMaximumCounter).toMutableList()
         val entryIds = current.entries.mapTo(HashSet()) { it.id }
-        val identityIndices = HashMap<GeneratorIdentity, Int>()
+        val identityIndices = HashMap<OtpGeneratorIdentity, Int>()
         current.entries.forEachIndexed { index, entry ->
-            identityIndices.putIfAbsent(GeneratorIdentity.of(entry), index)
+            identityIndices.putIfAbsent(OtpGeneratorIdentity.of(entry), index)
         }
         var added = 0
         var duplicates = 0
         val hotpWarnings = LinkedHashSet<UUID>()
         for (imported in incoming.entries) {
-            val identity = GeneratorIdentity.of(imported)
+            val identity = OtpGeneratorIdentity.of(imported)
             val duplicateIndex = identityIndices[identity]
             val restoredId: UUID
             if (duplicateIndex != null) {
@@ -131,17 +130,4 @@ object RestorePlanner {
         )
     }
 
-    private data class GeneratorIdentity(
-        val type: OtpType,
-        val secret: OtpSecret,
-        val algorithm: HashAlgorithm,
-        val digits: Int,
-        val periodSeconds: Int,
-    ) {
-        companion object {
-            fun of(entry: OtpEntry) = GeneratorIdentity(
-                entry.type, entry.secret, entry.algorithm, entry.digits, entry.periodSeconds,
-            )
-        }
-    }
 }
