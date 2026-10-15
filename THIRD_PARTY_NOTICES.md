@@ -20,7 +20,7 @@
 | AndroidX Activity Compose | 1.13.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX Fragment KTX | 1.9.1 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX Biometric | 1.1.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
-| AndroidX Lifecycle runtime KTX, runtime Compose, viewmodel Compose и process | 2.11.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
+| AndroidX Lifecycle runtime KTX, runtime Compose, viewmodel Compose и process | 2.10.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX WorkManager runtime KTX | 2.12.0 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX CameraX core, camera2, lifecycle и view | 1.6.2 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | ZXing core | 3.5.4 | [Apache-2.0, ZXing authors](https://github.com/zxing/zxing/blob/zxing-3.5.4/LICENSE) |

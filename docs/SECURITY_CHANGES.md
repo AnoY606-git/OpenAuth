@@ -43,7 +43,7 @@
 - ZXing 3.5.3 → 3.5.4; coroutines 1.10.2 → 1.11.0.
 - Compose BOM 2025.08.01 → 2026.06.01 (UI 1.11.4).
 - Activity 1.10.1 → 1.13.0; Fragment 1.8.9 → 1.9.1.
-- Lifecycle 2.9.2 → 2.11.0; CameraX 1.4.2 → 1.6.2;
+- Lifecycle 2.9.2 → 2.10.0; CameraX 1.4.2 → 1.6.2;
   WorkManager 2.10.5 → 2.12.0.
 - AndroidX Test runner/rules 1.7.0, ext JUnit 1.3.0, UI Automator 2.4.0.
 
@@ -52,7 +52,8 @@
 всего транзитивного графа проверяется Android CI.
 
 Compose BOM 2026.09.00 не выбран: его UI 1.12.1 требует compileSdk 37 и
-AGP 9.1.0. Serialization 1.10/1.11 требует Kotlin 2.3; текущая версия Kotlin
+AGP 9.1.0. То же ограничение имеют Compose-модули Lifecycle 2.11.0;
+используется согласованная линейка Lifecycle 2.10.0. Serialization 1.10/1.11 требует Kotlin 2.3; текущая версия Kotlin
 2.2.21 сохранена. OkHttp/MockWebServer остаются на совместимой ветке 4.12.0:
 переход на 5.x — отдельное изменение API и тестового стека. Biometric 1.1.0
 и Play Services Auth 22.0.0 остаются текущими стабильными в проверенных
