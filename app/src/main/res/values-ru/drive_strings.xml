@@ -1,5 +1,7 @@
 <resources>
     <string name="drive_title">Google Drive</string>
+    <string name="drive_in_development">В разработке</string>
+    <string name="drive_development_file_backup">Облачные копии временно недоступны. Сохраните зашифрованную файловую копию выше и храните её пароль или PIN отдельно.</string>
     <string name="drive_description">Автоматические зашифрованные копии в вашем Google-аккаунте. Доступ только к скрытой папке Open Auth. Локальные и файловые копии работают без Google.</string>
     <string name="drive_connect">Подключить Google-аккаунт</string>
     <string name="drive_change_account">Сменить Google-аккаунт</string>

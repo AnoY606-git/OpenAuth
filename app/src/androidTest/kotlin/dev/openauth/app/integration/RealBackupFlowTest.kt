@@ -42,13 +42,52 @@ class RealBackupFlowTest {
         compose.onNodeWithText(text(R.string.backup_continue)).performClick()
     }
 
+    @Test fun corruptVaultRecoveryPreservesCiphertextAndAuthenticatesNewKey() {
+        val pin = requireNotNull(InstrumentationRegistry.getArguments().getString("testPin")) { "Real PIN required" }
+        compose.onNodeWithTag("unlock-vault").performClick(); credential(pin)
+        val model = OpenAuthViewModel(app.vault)
+        val label = "Recovery synthetic ${System.currentTimeMillis()}"
+        runBlocking { model.save(AccountDraft(issuer = "Recovery", accountName = label, secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")) }
+        val expectedCode = OtpEngine.totp(snapshot().entries.single { it.accountName == label }, 59)
+        val ciphertext = runBlocking {
+            app.backup.configure(dev.openauth.core.backup.BackupCredential.password("Synthetic recovery password 2026!".toCharArray()))
+            app.backup.exportSnapshot()
+        }
+        app.vault.lock()
+        val file = java.io.File(app.noBackupFilesDir, "vault.oav")
+        val corrupted = file.readBytes().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+        file.writeBytes(corrupted)
+        runBlocking { try { app.vault.unlock(); fail("Damaged ciphertext opened") } catch (_: dev.openauth.app.vault.VaultException) {} }
+        app.backup.files.stageCiphertext(ciphertext)
+        compose.onAllNodesWithText(text(R.string.backups)).onLast().performClick()
+        click(R.string.backup_recover_unavailable)
+        password("Synthetic recovery password 2026!")
+        awaitText(R.string.backup_preview_title)
+        assertArrayEquals(corrupted, file.readBytes())
+        compose.onNode(isToggleable()).performScrollTo().performClick()
+        compose.onNodeWithText(text(R.string.backup_restore_confirm)).performClick()
+        credential(pin)
+        awaitText(R.string.backup_restore_success)
+        val saved = java.io.File(app.noBackupFilesDir, "vault-recovery").listFiles().orEmpty()
+        assertTrue("Original ciphertext retained privately", saved.any { it.readBytes().contentEquals(corrupted) })
+        assertEquals(expectedCode, OtpEngine.totp(snapshot().entries.single { it.accountName == label }, 59))
+        app.vault.lock()
+        compose.onAllNodesWithText(text(R.string.codes)).onLast().performClick()
+        compose.onNodeWithTag("unlock-vault").performClick(); credential(pin)
+        assertEquals(expectedCode, OtpEngine.totp(snapshot().entries.single { it.accountName == label }, 59))
+    }
+
     @Test fun actualSafRoundTripRequiresUnlockAndRejectsWrongPasswordBeforeCommit() {
         val pin = InstrumentationRegistry.getArguments().getString("testPin")
         assumeNotNull(pin)
         compose.onNodeWithTag("unlock-vault").performClick(); credential(pin!!)
         val model = OpenAuthViewModel(app.vault)
-        val label = "SAF synthetic ${System.currentTimeMillis()}"
-        runBlocking { model.save(AccountDraft(issuer = "Test service", accountName = label, secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")) }
+        val label = "SAF synthetic ${java.util.UUID.randomUUID()}"
+        // Генератор уникален для прогона: MERGE вправе сохранить метаданные существующего дубликата.
+        val syntheticSecret = dev.openauth.core.otp.Base32.encode(dev.openauth.core.model.OtpSecret.fromBytes(
+            java.security.MessageDigest.getInstance("SHA-256").digest(label.toByteArray(Charsets.UTF_8)).copyOf(20),
+        ))
+        runBlocking { model.save(AccountDraft(issuer = "Test service", accountName = label, secret = syntheticSecret)) }
         val entry = snapshot().entries.single { it.accountName == label }
         val expectedCode = OtpEngine.totp(entry, 59)
         compose.onAllNodesWithText(text(R.string.backups)).onLast().performClick()

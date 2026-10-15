@@ -10,6 +10,7 @@ import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -19,13 +20,25 @@ class BackupCoordinatorTest {
     @get:Rule val temporary = TemporaryFolder()
     private class Storage : VaultStorage {
         var bytes: ByteArray? = null
+        var preserved: ByteArray? = null
+        var failRecovery = false
+        var beforeRecoveryCommit: () -> Unit = {}
         override fun read() = bytes?.copyOf()
         override fun writeAtomically(bytes: ByteArray) { this.bytes = bytes.copyOf() }
+        override fun replacePreservingOriginal(expected: ByteArray, replacement: ByteArray, commit: (() -> Unit) -> Unit) {
+            check(bytes!!.contentEquals(expected))
+            if (failRecovery) throw IOException()
+            beforeRecoveryCommit()
+            commit { preserved = bytes!!.copyOf(); bytes = replacement.copyOf() }
+        }
     }
     private class Keys : VaultKeyProtector {
+        var unavailable = false
+        var rejectWrap = false
+        override fun newRecoveryProtector(): VaultKeyProtector = Keys().also { it.rejectWrap = rejectWrap }
         override fun prepare(create: Boolean) = Unit
-        override fun wrap(key: ByteArray) = key.copyOf()
-        override fun unwrap(wrapped: ByteArray) = wrapped.copyOf()
+        override fun wrap(key: ByteArray): ByteArray { if (rejectWrap) throw VaultException(VaultFailure.AUTHENTICATION_REQUIRED); return key.copyOf() }
+        override fun unwrap(wrapped: ByteArray): ByteArray { if (unavailable) throw VaultException(VaultFailure.KEY_UNAVAILABLE); return wrapped.copyOf() }
     }
     private class Protector : MetadataProtector {
         var fail = false
@@ -40,6 +53,77 @@ class BackupCoordinatorTest {
         val dir = temporary.newFolder(); return EncryptedSnapshotQueue(dir, protector, TestAtomicBytes(File(dir, "metadata")))
     }
     private fun coordinator(repo: VaultRepository, queue: EncryptedSnapshotQueue) = BackupCoordinator(repo, queue, dispatcher = Dispatchers.Unconfined)
+
+    @Test fun recoveryOfCorruptCiphertextPreservesOriginalAndRequiresAuthentication() = runBlocking {
+        val source = repository(); source.initialize()
+        source.mutate { VaultSnapshot(revision = it.revision, entries = listOf(entry()), groups = emptyList()) }
+        val writer = coordinator(source, queue()); writer.configure(credential()); val backup = writer.exportSnapshot()
+        val storage = Storage(); val target = repository(storage); target.initialize(); target.lock()
+        storage.bytes!![storage.bytes!!.lastIndex] = (storage.bytes!!.last().toInt() xor 1).toByte()
+        assertThrows(VaultException::class.java) { runBlocking { target.unlock() } }
+        val original = storage.bytes!!.copyOf(); val reader = coordinator(target, queue())
+        val plan = reader.previewRecoveryRestore(backup, credential())
+        assertArrayEquals(original, storage.bytes); assertNull(storage.preserved)
+        var authenticated = false
+        reader.commitRestore(plan) { authenticated = true }
+        assertTrue(authenticated); assertArrayEquals(original, storage.preserved)
+        assertFalse(original.contentEquals(storage.bytes!!))
+        assertEquals(snapshot(source).entries, snapshot(target).entries)
+        target.lock(); target.unlock(); assertEquals(snapshot(source).entries, snapshot(target).entries)
+    }
+    @Test fun lockReturnsWhileRecoveryStagingIsBlockedAndLateCommitPreservesOriginal() = runBlocking {
+        val storage = Storage(); val target = VaultRepository(storage, Keys(), Dispatchers.IO)
+        target.initialize(); val reader = coordinator(target, queue()); reader.configure(credential()); val backup = reader.exportSnapshot()
+        target.lock(); storage.bytes!![0] = 0
+        val original = storage.bytes!!.copyOf(); val plan = reader.previewRecoveryRestore(backup, credential())
+        val staged = java.util.concurrent.CountDownLatch(1); val release = java.util.concurrent.CountDownLatch(1)
+        storage.beforeRecoveryCommit = { staged.countDown(); check(release.await(5, java.util.concurrent.TimeUnit.SECONDS)) }
+        val operation = kotlinx.coroutines.CoroutineScope(coroutineContext).async(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching { reader.commitRestore(plan) {} }
+        }
+        assertTrue(staged.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val locked = java.util.concurrent.CountDownLatch(1)
+        val thread = Thread { target.lock(); locked.countDown() }.apply { start() }
+        val immediate = try { locked.await(1, java.util.concurrent.TimeUnit.SECONDS) } finally { release.countDown() }
+        thread.join(5000)
+        assertTrue("Lock must not wait for recovery disk staging", immediate)
+        assertTrue(operation.await().exceptionOrNull() is VaultException)
+        assertArrayEquals(original, storage.bytes); assertNull(storage.preserved)
+        assertFalse(target.state.value is VaultState.Unlocked)
+    }
+
+    @Test fun missingOldKeyDoesNotPreventRecoveryPreviewOrReplacement() = runBlocking {
+        val storage = Storage(); val keys = Keys(); val target = VaultRepository(storage, keys, Dispatchers.Unconfined)
+        target.initialize(); val writer = coordinator(target, queue()); writer.configure(credential()); val backup = writer.exportSnapshot()
+        target.lock(); keys.unavailable = true
+        assertThrows(VaultException::class.java) { runBlocking { target.unlock() } }
+        val original = storage.bytes!!.copyOf()
+        val plan = writer.previewRecoveryRestore(backup, credential())
+        writer.commitRestore(plan) {}
+        assertArrayEquals(original, storage.preserved); assertTrue(target.state.value is VaultState.Unlocked)
+    }
+    @Test fun recoveryWrongPasswordCancelStaleWriteAndAuthFailurePreserveCiphertext() = runBlocking {
+        val storage = Storage(); val keys = Keys(); val target = VaultRepository(storage, keys, Dispatchers.Unconfined)
+        target.initialize(); val reader = coordinator(target, queue()); reader.configure(credential()); val backup = reader.exportSnapshot()
+        target.lock(); storage.bytes!![0] = 0
+        assertThrows(VaultException::class.java) { runBlocking { target.unlock() } }
+        val original = storage.bytes!!.copyOf()
+        assertThrows(BackupException::class.java) { runBlocking { reader.previewRecoveryRestore(backup, BackupCredential.password("incorrect synthetic password".toCharArray())) } }
+        var plan = reader.previewRecoveryRestore(backup, credential()); reader.cancelRestore()
+        assertThrows(BackupFlowException::class.java) { runBlocking { reader.commitRestore(plan) {} } }
+        plan = reader.previewRecoveryRestore(backup, credential()); target.lock()
+        assertThrows(VaultException::class.java) { runBlocking { reader.commitRestore(plan) {} } }
+        plan = reader.previewRecoveryRestore(backup, credential())
+        assertThrows(VaultException::class.java) { runBlocking { reader.commitRestore(plan) { throw VaultException(VaultFailure.AUTHENTICATION_CANCELLED) } } }
+        plan = reader.previewRecoveryRestore(backup, credential())
+        assertThrows(VaultException::class.java) { runBlocking { reader.commitRestore(plan) { target.lock() } } }
+        keys.rejectWrap = true; plan = reader.previewRecoveryRestore(backup, credential())
+        assertThrows(VaultException::class.java) { runBlocking { reader.commitRestore(plan) {} } }
+        keys.rejectWrap = false; storage.failRecovery = true; plan = reader.previewRecoveryRestore(backup, credential())
+        assertThrows(IOException::class.java) { runBlocking { reader.commitRestore(plan) {} } }
+        assertArrayEquals(original, storage.bytes); assertNull(storage.preserved)
+        assertFalse(target.state.value is VaultState.Unlocked)
+    }
 
     @Test fun generationWriteRejectsPreviousUnlockedSession() = runBlocking {
         val repo = repository(); repo.initialize(); val base = snapshot(repo)

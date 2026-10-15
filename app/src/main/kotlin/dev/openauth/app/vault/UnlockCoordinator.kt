@@ -21,13 +21,19 @@ class UnlockCoordinator(
     private var activePrompt: BiometricPrompt? = null
 
     suspend fun unlock(initialize: Boolean = false) {
-        withContext(Dispatchers.IO) { keys.prepare(initialize) }
+        withContext(Dispatchers.IO) { if (initialize) keys.prepare(true) else keys.prepareForUnlock() }
         withContext(Dispatchers.Main.immediate) {
             if (activePrompt != null) throw VaultException(VaultFailure.AUTHENTICATION_REQUIRED)
             authenticate()
             if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw VaultException(VaultFailure.LOCKED)
             if (initialize) repository.initialize() else repository.unlock()
         }
+    }
+
+    suspend fun authenticateRecovery() = withContext(Dispatchers.Main.immediate) {
+        if (activePrompt != null) throw VaultException(VaultFailure.AUTHENTICATION_REQUIRED)
+        authenticate()
+        if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) throw VaultException(VaultFailure.LOCKED)
     }
 
     private suspend fun authenticate(): Unit = suspendCancellableCoroutine { continuation ->

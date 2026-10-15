@@ -88,4 +88,20 @@
     <string name="failure_exists">A vault already exists.</string>
     <string name="failure_storage">Unable to read or save the vault.</string>
     <string name="invalid_group">Enter a unique group name with 1–256 characters.</string>
+    <string name="language">Language</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_english">English</string>
+    <string name="backup_recover_unavailable">Recover an inaccessible vault</string>
+    <string name="backup_recovery_explanation">Use this if the old vault cannot be opened. Only replacement is possible: its accounts and HOTP counters cannot be compared. After confirmation and fresh system authentication, the old encrypted file is kept privately and a new vault is created.</string>
+    <string name="backup_incoming">From backup</string>
+    <string name="backup_duplicate_retained">Duplicate generator · these local details are kept</string>
+    <string name="backup_preview_counter">Next HOTP counter: %1$d</string>
+    <string name="backup_preview_period">Period: %1$d seconds</string>
+    <string name="backup_preview_group">Group: %1$s</string>
+    <string name="drive_last_confirmed">Last confirmed upload: %1$s</string>
+    <string name="drive_never_confirmed">No confirmed uploads yet</string>
+    <string name="drive_revoke">Revoke Google access</string>
+    <string name="drive_revoke_explanation">Uploads stop before Google access is revoked for this account. Reconnecting requires consent again. Local codes remain available. This action does not request deletion of cloud backups; deleting backup history is a separate action.</string>
+    <string name="drive_revoked">Google access revoked. Reconnect to grant access again.</string>
+    <string name="language_system">System</string>
 </resources>

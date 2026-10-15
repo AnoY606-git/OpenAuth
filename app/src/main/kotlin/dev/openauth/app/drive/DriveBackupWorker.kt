@@ -33,6 +33,7 @@ class DriveUploadEngine(
     private val tokens: DriveTokenProvider,
     private val remote: DriveRemote,
     private val status: DriveSyncStatus,
+    private val now: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
     suspend fun run(configurationId: UUID): DriveRunResult = withContext(Dispatchers.IO) { destinations.operations.withLock {
         var destination: DriveDestination? = null
@@ -86,6 +87,10 @@ class DriveUploadEngine(
                         throw DriveException(DriveFailure.CONFLICT)
                     }
                     checkCurrent(captured)
+                    destinations.ifCurrent(queue, captured) {
+                        destinations.confirmUpload(captured, now())
+                        status.publish(configurationId, DriveSyncPhase.UPLOADING, destinations.lastUploadedAt(configurationId))
+                    }
                     authenticated { remote.trimHistory(it, captured.sourceId) }
                     checkCurrent(captured)
                     destinations.ifCurrent(queue, captured) {
@@ -154,12 +159,14 @@ class DriveUploadEngine(
         }
     }
     private fun checkCurrent(destination: DriveDestination) { destinations.ifCurrent(queue, destination) { } }
-    private fun publish(destination: DriveDestination, phase: DriveSyncPhase) = destinations.ifCurrent(queue, destination) { status.publish(destination.configurationId, phase) }
+    private fun publish(destination: DriveDestination, phase: DriveSyncPhase) = destinations.ifCurrent(queue, destination) { status.publish(destination.configurationId, phase, destinations.lastUploadedAt(destination.configurationId)) }
 }
 
 interface DriveWorkerOwner { val driveUploadEngine: DriveUploadEngine }
 class DriveBackupWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
+        // Old persisted work can start before Application finishes cancelling the queue.
+        if (!DriveFeature.enabled) return Result.success()
         val configuration = try { UUID.fromString(inputData.getString(CONFIGURATION_KEY)) } catch (_: Exception) { return Result.failure() }
         val engine = (applicationContext as? DriveWorkerOwner)?.driveUploadEngine ?: return Result.failure()
         return when (engine.run(configuration)) {

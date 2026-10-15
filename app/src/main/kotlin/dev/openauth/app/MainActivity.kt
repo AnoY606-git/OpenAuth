@@ -15,6 +15,10 @@ import dev.openauth.app.vault.VaultState
 class MainActivity : FragmentActivity() {
     private val app get() = application as OpenAuthApplication
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(dev.openauth.app.ui.AppLanguage.contextFor(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         super.onCreate(savedInstanceState)
@@ -34,7 +38,7 @@ class MainActivity : FragmentActivity() {
                         DriveBackupSettings(app.driveConnection, app.driveAuthorization, app.driveRestoreBrowser,
                             onUnlock = unlockForBackup,
                             onRestoreCiphertext = app.backup.files::stageCiphertext)
-                    })
+                    }, onAuthenticateRecovery = unlock::authenticateRecovery)
                 },
             )
         }

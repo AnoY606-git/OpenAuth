@@ -14,11 +14,17 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(themeMode: ThemeMode, onTheme: (ThemeMode) -> Unit, content: @Composable () -> Unit = {}) {
+fun SettingsScreen(themeMode: ThemeMode, onTheme: (ThemeMode) -> Unit, language: LanguageMode = LanguageMode.SYSTEM, onLanguage: (LanguageMode) -> Unit = {}, content: @Composable () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(stringResource(R.string.appearance), style = MaterialTheme.typography.titleLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ThemeMode.entries.forEach { mode -> FilterChip(selected = themeMode == mode, onClick = { onTheme(mode) }, label = { Text(stringResource(when (mode) { ThemeMode.SYSTEM -> R.string.theme_system; ThemeMode.LIGHT -> R.string.theme_light; ThemeMode.DARK -> R.string.theme_dark })) }) }
+        }
+        Text(stringResource(R.string.language), style = MaterialTheme.typography.titleLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LanguageMode.entries.forEach { mode -> FilterChip(selected = language == mode, onClick = { onLanguage(mode) }, label = {
+                Text(stringResource(when (mode) { LanguageMode.SYSTEM -> R.string.language_system; LanguageMode.RUSSIAN -> R.string.language_russian; LanguageMode.ENGLISH -> R.string.language_english }))
+            }) }
         }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

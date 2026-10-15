@@ -31,12 +31,23 @@ fun DriveBackupSettings(
     onUnlock: suspend () -> Unit,
     onRestoreCiphertext: (ByteArray) -> Unit,
 ) {
+    if (!DriveFeature.enabled) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HorizontalDivider()
+            Text(stringResource(R.string.drive_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.drive_in_development), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.drive_development_file_backup), style = MaterialTheme.typography.bodyMedium)
+        }
+        return
+    }
     val scope = rememberCoroutineScope()
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val sync by controller.status.state.collectAsState()
     var destination by remember { mutableStateOf<DriveDestination?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<Int?>(null) }
     var history by remember { mutableStateOf<DriveHistory?>(null) }
+    var confirmRevoke by remember { mutableStateOf<DriveDestination?>(null) }
     var confirmDelete by remember { mutableStateOf<DriveDestination?>(null) }
     var accountRequest by remember { mutableStateOf<String?>(null) }
     var newConnection by remember { mutableStateOf(true) }
@@ -120,6 +131,11 @@ fun DriveBackupSettings(
         val phase = if (destination == null) DriveSyncPhase.DISCONNECTED
             else if (sync.configurationId == destination?.configurationId) sync.phase else DriveSyncPhase.WAITING_FOR_UNLOCK
         Text(stringResource(phase.label()))
+        if (destination != null) {
+            val confirmed = sync.takeIf { it.configurationId == destination?.configurationId }?.lastUploadedAtEpochSeconds
+            Text(confirmed?.let { snapshotDate(it, locale) }?.let { stringResource(R.string.drive_last_confirmed, it) }
+                ?: stringResource(R.string.drive_never_confirmed), style = MaterialTheme.typography.bodyMedium)
+        }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         message?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         Button(enabled = enabled, modifier = Modifier.fillMaxWidth(), onClick = {
@@ -142,6 +158,9 @@ fun DriveBackupSettings(
             TextButton(enabled = enabled, onClick = { execute { controller.disconnect(); history = null } }) {
                 Text(stringResource(R.string.drive_disconnect))
             }
+            TextButton(enabled = enabled, onClick = { confirmRevoke = destination }) {
+                Text(stringResource(R.string.drive_revoke))
+            }
             TextButton(enabled = enabled, onClick = { confirmDelete = destination }) {
                 Text(stringResource(R.string.drive_delete_history), color = MaterialTheme.colorScheme.error)
             }
@@ -159,13 +178,21 @@ fun DriveBackupSettings(
                             history = null; message = R.string.drive_restore_ready
                         } }) {
                             Column {
-                                Text(snapshotDate(snapshot.createdAtEpochSeconds) ?: stringResource(R.string.drive_unknown_date))
+                                Text(snapshotDate(snapshot.createdAtEpochSeconds, locale) ?: stringResource(R.string.drive_unknown_date))
                                 Text(stringResource(R.string.drive_snapshot_details, snapshot.revision, snapshot.sourceId.toString().take(8)))
                             }
                         }
                     }
                 }
             }, confirmButton = { TextButton(enabled = enabled, onClick = { history = null }) { Text(stringResource(R.string.drive_close)) } })
+    }
+    confirmRevoke?.let { selected ->
+        AlertDialog(onDismissRequest = { if (!busy) confirmRevoke = null }, title = { Text(stringResource(R.string.drive_revoke)) },
+            text = { Text(stringResource(R.string.drive_revoke_explanation)) },
+            confirmButton = { TextButton(enabled = enabled, onClick = { confirmRevoke = null; execute {
+                controller.revoke(selected, authorization::revokeAccess); history = null; message = R.string.drive_revoked
+            } }) { Text(stringResource(R.string.drive_revoke)) } },
+            dismissButton = { TextButton(onClick = { confirmRevoke = null }) { Text(stringResource(R.string.drive_cancel)) } })
     }
     confirmDelete?.let { selected ->
         AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text(stringResource(R.string.drive_delete_history)) },
@@ -190,6 +217,6 @@ private fun DriveSyncPhase.label(): Int = when (this) {
     DriveSyncPhase.FAILED -> R.string.drive_operation_failed
 }
 
-private fun snapshotDate(epochSeconds: Long): String? = try {
-    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(epochSeconds))
+private fun snapshotDate(epochSeconds: Long, locale: java.util.Locale): String? = try {
+    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).withLocale(locale).withZone(ZoneId.systemDefault()).format(Instant.ofEpochSecond(epochSeconds))
 } catch (_: java.time.DateTimeException) { null }

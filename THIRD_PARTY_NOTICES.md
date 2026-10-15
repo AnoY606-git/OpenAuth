@@ -44,6 +44,7 @@ AndroidX использует дополнительные транзитивн�
 | JUnit 4 | 4.13.2 | [EPL-1.0](https://github.com/junit-team/junit4/blob/r4.13.2/LICENSE-junit.txt), используется только тестами |
 | MockWebServer | 4.12.0 | [Apache-2.0, Square](https://github.com/square/okhttp/blob/parent-4.12.0/LICENSE.txt) |
 | kotlinx.coroutines-test | 1.10.2 | [Apache-2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/LICENSE.txt) |
+| AndroidX WorkManager testing (только тесты) | 2.10.5 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | AndroidX Test runner / rules / ext JUnit / UI Automator | 1.6.2 / 1.6.1 / 1.2.1 / 2.3.0 | [Apache-2.0, Android Open Source Project](https://github.com/android/android-test/blob/main/LICENSE) |
 | AndroidX Compose UI test JUnit4 и test manifest | BOM 2025.08.01 | [Apache-2.0, Android Open Source Project](https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt) |
 | Gradle Wrapper | 8.13 | [Apache-2.0, Gradle](https://github.com/gradle/gradle/blob/v8.13.0/LICENSE); авторство стартовых скриптов сохранено |

@@ -43,7 +43,7 @@ class OpenAuthApplication : Application(), DriveWorkerOwner {
         vault = VaultRepository(LocalVaultFile(File(noBackupFilesDir, "vault.oav")), deviceKeys)
         // Конструкторы не читают ciphertext и не обращаются к Keystore. Загрузка ниже выполняется на IO.
         val queue = EncryptedSnapshotQueue(File(noBackupFilesDir, "snapshot-queue"), AndroidMetadataProtector())
-        backup = BackupCoordinator(vault, queue)
+        backup = BackupCoordinator(vault, queue, automaticSnapshotsEnabled = DriveFeature.enabled)
         val destinations = DriveDestinationStore(
             AndroidAtomicBytes(File(noBackupFilesDir, "drive-destination")),
             AndroidMetadataProtector("OpenAuth.drive.destination.v1"),
@@ -52,12 +52,13 @@ class OpenAuthApplication : Application(), DriveWorkerOwner {
         driveAuthorization = DriveAuthorization(this)
         val client = DriveRestClient()
         val scheduler = DriveBackupScheduler(this)
+        if (!DriveFeature.enabled) scheduler.cancel()
         driveUploadEngine = DriveUploadEngine(queue, destinations, driveAuthorization, DriveRestRemote(client), status)
         driveConnection = DriveConnectionController(queue, destinations, status, scheduler::enqueue, scheduler::cancel,
             initialSnapshot = { backup.snapshotNow() })
         driveRestoreBrowser = DriveRestoreBrowser(queue, destinations, driveAuthorization, client, status, scheduler::cancel)
         backup.startObserving(applicationScope)
-        applicationScope.launch {
+        if (DriveFeature.enabled) applicationScope.launch {
             try {
                 queue.checkpoint()
                 driveConnection.refreshStatus()

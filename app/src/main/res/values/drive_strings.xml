@@ -1,5 +1,7 @@
 <resources>
     <string name="drive_title">Google Drive</string>
+    <string name="drive_in_development">In development</string>
+    <string name="drive_development_file_backup">Cloud backups are temporarily unavailable. Save an encrypted file backup above and keep its password or PIN separately.</string>
     <string name="drive_description">Automatic encrypted backups in your Google account. Access is limited to the hidden Open Auth folder. Local codes and file backups work without Google.</string>
     <string name="drive_connect">Connect Google account</string>
     <string name="drive_change_account">Change Google account</string>

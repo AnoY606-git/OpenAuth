@@ -61,7 +61,18 @@ fun OpenAuthApp(
     ClipboardExpiryEffect(clipboard)
     val preferences = remember { context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE) }
     var theme by remember { mutableStateOf(runCatching { ThemeMode.valueOf(preferences.getString("theme", ThemeMode.SYSTEM.name)!!) }.getOrDefault(ThemeMode.SYSTEM)) }
+    val language = remember(context) { AppLanguage.selected(context) }
     val dark = when (theme) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.LIGHT -> false; ThemeMode.DARK -> true }
+    val view = androidx.compose.ui.platform.LocalView.current
+    SideEffect {
+        val activity = context.findActivity()
+        activity?.window?.let { window ->
+            androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
+    }
     OpenAuthTheme(darkTheme = dark) {
         val state by viewModel.vaultState.collectAsStateWithLifecycle()
         var destination by remember { mutableStateOf(Destination.CODES) }
@@ -77,7 +88,7 @@ fun OpenAuthApp(
             },
             bottomBar = {
                 NavigationBar { Destination.entries.forEach { item ->
-                    NavigationBarItem(selected = destination == item, onClick = { destination = item }, icon = { UiSymbol(item.symbol) }, label = { Text(stringResource(item.label)) })
+                    NavigationBarItem(selected = destination == item, onClick = { destination = item }, icon = { UiSymbol(item.symbol) }, label = { Text(stringResource(item.label), maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) })
                 } }
             },
         ) { padding ->
@@ -99,7 +110,12 @@ fun OpenAuthApp(
                         }
                     }
                     Destination.BACKUPS -> backupContent()
-                    Destination.SETTINGS -> SettingsScreen(theme, { next -> theme = next; preferences.edit().putString("theme", next.name).apply() }, settingsContent)
+                    Destination.SETTINGS -> SettingsScreen(theme, { next -> theme = next; preferences.edit().putString("theme", next.name).apply() },
+                        language = language, onLanguage = { next ->
+                            AppLanguage.save(context, next)
+                            viewModel.repository.lock()
+                            context.findActivity()?.recreate()
+                        }, content = settingsContent)
                 }
             }
         }
@@ -233,4 +249,10 @@ private fun failureResource(reason: VaultFailure): Int = when (reason) {
     VaultFailure.AUTHENTICATION_REQUIRED, VaultFailure.LOCKED -> R.string.failure_auth
     VaultFailure.ALREADY_INITIALIZED -> R.string.failure_exists
     VaultFailure.STORAGE_UNAVAILABLE -> R.string.failure_storage
+}
+
+private fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

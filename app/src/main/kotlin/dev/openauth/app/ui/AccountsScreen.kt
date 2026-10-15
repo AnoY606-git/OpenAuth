@@ -27,6 +27,7 @@ import dev.openauth.core.otp.OtpEngine
 import java.util.UUID
 import kotlinx.coroutines.flow.distinctUntilChanged
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AccountsScreen(
     snapshot: VaultSnapshot,
@@ -94,11 +95,13 @@ fun AccountsScreen(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilledTonalButton(onClick = onScan, modifier = Modifier.weight(1f).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+        val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = if (largeFont) 1 else 2) {
+            FilledTonalButton(onClick = onScan, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
                 UiSymbol(Symbol.SCAN); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.scan_qr))
             }
-            Button(onClick = onAdd, modifier = Modifier.weight(1f).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+            Button(onClick = onAdd, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
                 UiSymbol(Symbol.ADD); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_account))
             }
         }

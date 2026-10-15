@@ -32,6 +32,19 @@ class AccountsScreenTest {
         compose.onNodeWithTag("add-account").assertHasClickAction()
         compose.onNodeWithTag("scan-account").assertHasClickAction()
     }
+    @Test fun largeFontActionsAreFullWidthAndRemainReachable() {
+        compose.setContent {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, 2f)) {
+                OpenAuthTheme { AccountsScreen(snapshot) }
+            }
+        }
+        val scan = compose.onNodeWithTag("scan-account").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val add = compose.onNodeWithTag("add-account").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertEquals(scan.left, add.left, 1f)
+        assertTrue("Actions stack without narrow columns at 200%", add.top >= scan.bottom)
+        compose.onNodeWithTag("add-account").assertHasClickAction()
+    }
     @Test fun cameraDeniedOffersManualEntryWithoutCamera() {
         var manual = false
         compose.setContent { OpenAuthTheme { dev.openauth.app.scanner.CameraUnavailable(onManual = { manual = true }, onCancel = {}) } }

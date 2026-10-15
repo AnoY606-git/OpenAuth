@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 class ApplicationIntegrationTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
-    @Test fun lockedProductionActivityExposesRealFileBackupAndCloudControls() {
+    @Test fun lockedProductionActivityKeepsFileBackupsAndShowsDriveInDevelopmentWithoutCloudControls() {
         val app = compose.activity.application as OpenAuthApplication
         compose.runOnIdle {
             app.vault.lock()
@@ -25,6 +25,11 @@ class ApplicationIntegrationTest {
         compose.onAllNodesWithText(compose.activity.getString(R.string.backups)).onLast().performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.backup_export)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(compose.activity.getString(R.string.backup_open)).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(compose.activity.getString(R.string.drive_connect)).performScrollTo().assertIsDisplayed()
+        val development = if (compose.activity.resources.configuration.locales[0].language == "ru") "В разработке" else "In development"
+        compose.onNodeWithText(development).performScrollTo().assertIsDisplayed()
+        for (control in listOf(R.string.drive_connect, R.string.drive_change_account, R.string.drive_upload_now,
+            R.string.drive_restore, R.string.drive_disconnect, R.string.drive_revoke, R.string.drive_delete_history)) {
+            compose.onNodeWithText(compose.activity.getString(control)).assertDoesNotExist()
+        }
     }
 }

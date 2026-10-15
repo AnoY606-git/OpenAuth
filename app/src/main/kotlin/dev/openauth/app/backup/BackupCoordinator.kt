@@ -23,12 +23,14 @@ class BackupCoordinator(
     private val codec: BackupCodec = BackupCodec(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val now: () -> Long = { System.currentTimeMillis() / 1000 },
+    private val automaticSnapshotsEnabled: Boolean = true,
 ) {
     val files = BackupFileSession()
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow<BackupState>(BackupState.NeverCreated)
     val state: StateFlow<BackupState> = mutableState.asStateFlow()
-    private var preview: Pair<VaultSnapshot, RestorePlan>? = null
+    private data class Preview(val plan: RestorePlan, val base: VaultSnapshot? = null, val recovery: VaultRepository.RecoveryTicket? = null)
+    private var preview: Preview? = null
 
     suspend fun configure(credential: BackupCredential) = replaceGeneration(credential)
     suspend fun rotate(credential: BackupCredential) = replaceGeneration(credential)
@@ -79,6 +81,8 @@ class BackupCoordinator(
     }
 
     private suspend fun recoverLocked() {
+        // Keep old cloud ciphertext/configuration dormant; explicit file export is independent.
+        if (!automaticSnapshotsEnabled) return
         if (queue.activeConfigurationId() == null) return
         val base = current()
         val local = repository.readBackupGenerationState() ?: return
@@ -119,19 +123,34 @@ class BackupCoordinator(
             val incoming = kdfMutex.withLock { codec.open(container, credential) }
             currentCoroutineContext().ensureActive(); requireCurrent(base)
             val plan = RestorePlanner.plan(base, incoming, mode, UUID::randomUUID)
-            preview = base to plan
+            preview = Preview(plan, base = base)
+            plan
+        } } } finally { credential.close() }
+    }
+
+    suspend fun previewRecoveryRestore(container: ByteArray, credential: BackupCredential): RestorePlan {
+        try { return withContext(dispatcher) { mutex.withLock {
+            preview = null
+            val ticket = repository.beginRecovery()
+            val incoming = kdfMutex.withLock { codec.open(container, credential) }
+            currentCoroutineContext().ensureActive()
+            repository.validateRecovery(ticket)
+            val empty = VaultSnapshot(revision = 0, entries = emptyList(), groups = emptyList())
+            val plan = RestorePlanner.plan(empty, incoming, RestoreMode.REPLACE, UUID::randomUUID)
+            preview = Preview(plan, recovery = ticket)
             plan
         } } } finally { credential.close() }
     }
 
     suspend fun cancelRestore() = mutex.withLock { preview = null }
 
-    suspend fun commitRestore(plan: RestorePlan) = withContext(dispatcher) { mutex.withLock {
+    suspend fun commitRestore(plan: RestorePlan, authenticateRecovery: suspend () -> Unit = { throw dev.openauth.app.vault.VaultException(dev.openauth.app.vault.VaultFailure.AUTHENTICATION_REQUIRED) }) = withContext(dispatcher) { mutex.withLock {
         val staged = preview ?: throw BackupFlowException(BackupFlowFailure.STALE_PREVIEW)
-        if (staged.second !== plan) throw BackupFlowException(BackupFlowFailure.STALE_PREVIEW)
+        if (staged.plan !== plan) throw BackupFlowException(BackupFlowFailure.STALE_PREVIEW)
         preview = null
-        repository.mutate { base ->
-            if (base !== staged.first) throw BackupFlowException(BackupFlowFailure.STALE_PREVIEW)
+        if (staged.recovery != null) repository.recover(staged.recovery, plan.result, authenticateRecovery)
+        else repository.mutate { base ->
+            if (base !== staged.base) throw BackupFlowException(BackupFlowFailure.STALE_PREVIEW)
             plan.result
         }
         // Успешное восстановление не откатывается из-за отдельной ошибки резервного копирования.

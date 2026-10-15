@@ -14,6 +14,10 @@ object RestorePlanner {
         mode: RestoreMode,
         newId: () -> UUID,
     ): RestorePlan {
+        fun metadata(entry: OtpEntry, groups: List<dev.openauth.core.model.EntryGroup>) = RestoreAccountMetadata(
+            entry.issuer, entry.accountName, entry.type, entry.algorithm, entry.digits, entry.periodSeconds,
+            entry.nextCounter, groups.firstOrNull { it.id == entry.groupId }?.name, entry.favorite, entry.sortIndex,
+        )
         // Максимум учитывает все псевдонимы генератора, независимо от режима и порядка.
         val maximumHotpCounters = HashMap<OtpGeneratorIdentity, Long>()
         for (snapshot in listOf(current, incoming)) {
@@ -38,6 +42,7 @@ object RestorePlanner {
                     entries = incoming.entries.map(::withMaximumCounter),
                     groups = incoming.groups,
                 ),
+                accounts = incoming.entries.map { RestoreAccountPreview(metadata(it, incoming.groups)) },
                 added = incoming.entries.size,
                 duplicates = 0,
                 remappedIds = 0,
@@ -84,6 +89,7 @@ object RestorePlanner {
         current.entries.forEachIndexed { index, entry ->
             identityIndices.putIfAbsent(OtpGeneratorIdentity.of(entry), index)
         }
+        val accounts = ArrayList<RestoreAccountPreview>()
         var added = 0
         var duplicates = 0
         val hotpWarnings = LinkedHashSet<UUID>()
@@ -95,6 +101,7 @@ object RestorePlanner {
                 duplicates++
                 val local = entries[duplicateIndex]
                 restoredId = local.id
+                accounts.add(RestoreAccountPreview(metadata(imported, incoming.groups), metadata(local, groups)))
             } else {
                 if (entries.size >= 10_000) {
                     throw RestorePlanningException(RestoreFailure.ENTRY_LIMIT_EXCEEDED)
@@ -111,6 +118,7 @@ object RestorePlanner {
                 identityIndices[identity] = entries.size
                 entryIds.add(restoredId)
                 entries.add(restored)
+                accounts.add(RestoreAccountPreview(metadata(imported, incoming.groups)))
                 added++
             }
             if (imported.type == OtpType.HOTP) hotpWarnings.add(restoredId)
@@ -123,6 +131,7 @@ object RestorePlanner {
                 entries = entries,
                 groups = groups,
             ),
+            accounts = accounts,
             added = added,
             duplicates = duplicates,
             remappedIds = remappedIds,

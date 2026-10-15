@@ -78,7 +78,7 @@ class VisualCaptureTest {
                     compose.onAllNodesWithText(compose.activity.getString(R.string.backups)).onLast().performClick()
                     compose.onNodeWithText(compose.activity.getString(R.string.backup_title)).assertIsDisplayed()
                     capture("backups-$label.png")
-                    compose.onNodeWithText(compose.activity.getString(R.string.drive_connect)).performScrollTo()
+                    compose.onNodeWithText(compose.activity.getString(R.string.drive_in_development)).performScrollTo()
                     capture("backups-drive-$label.png")
                 }
             }

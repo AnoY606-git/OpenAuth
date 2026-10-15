@@ -1,6 +1,8 @@
 package dev.openauth.core.restore
 
 import dev.openauth.core.model.VaultSnapshot
+import dev.openauth.core.model.OtpType
+import dev.openauth.core.model.HashAlgorithm
 import java.util.Collections
 import java.util.UUID
 
@@ -22,12 +24,18 @@ class RestorePlanningException(val reason: RestoreFailure) : IllegalArgumentExce
  * hotpWarnings содержит уникальные ID восстановленных HOTP: счётчик сервиса может быть выше.
  * remappedIds учитывает переназначения как записей, так и групп.
  */
+/** Только отображаемые метаданные: setup secret и URI намеренно отсутствуют. */
+data class RestoreAccountMetadata(val issuer: String, val accountName: String, val type: OtpType, val algorithm: HashAlgorithm, val digits: Int, val periodSeconds: Int, val nextCounter: Long, val groupName: String?, val favorite: Boolean, val sortIndex: Long)
+data class RestoreAccountPreview(val incoming: RestoreAccountMetadata, val retained: RestoreAccountMetadata? = null)
+
 class RestorePlan(
     val result: VaultSnapshot,
     val added: Int,
     val duplicates: Int,
     val remappedIds: Int,
     hotpWarnings: List<UUID>,
+    accounts: List<RestoreAccountPreview> = emptyList(),
 ) {
+    val accounts: List<RestoreAccountPreview> = Collections.unmodifiableList(ArrayList(accounts))
     val hotpWarnings: List<UUID> = Collections.unmodifiableList(ArrayList(hotpWarnings))
 }

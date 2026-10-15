@@ -19,33 +19,52 @@ data class DriveDestination(val accountName: String, val configurationId: UUID, 
 enum class DriveConnectionFailure { STORAGE, UNAVAILABLE, AUTHORIZATION, DESTINATION_CHANGED }
 class DriveConnectionException(val failure: DriveConnectionFailure) : Exception(failure.name)
 enum class DriveSyncPhase { DISCONNECTED, WAITING_FOR_UNLOCK, NEEDS_BACKUP_PASSWORD, PENDING, UPLOADING, UPLOADED, NEEDS_CONSENT, UNAVAILABLE, RETRYING, FAILED }
-data class DriveSyncState(val configurationId: UUID? = null, val phase: DriveSyncPhase = DriveSyncPhase.DISCONNECTED)
+data class DriveSyncState(val configurationId: UUID? = null, val phase: DriveSyncPhase = DriveSyncPhase.DISCONNECTED, val lastUploadedAtEpochSeconds: Long? = null)
 class DriveSyncStatus {
     private val mutableState = MutableStateFlow(DriveSyncState())
     val state = mutableState.asStateFlow()
-    internal fun publish(configuration: UUID?, phase: DriveSyncPhase) { mutableState.value = DriveSyncState(configuration, phase) }
+    internal fun publish(configuration: UUID?, phase: DriveSyncPhase, confirmedAt: Long? = mutableState.value.takeIf { it.configurationId == configuration }?.lastUploadedAtEpochSeconds) { mutableState.value = DriveSyncState(configuration, phase, confirmedAt) }
 }
 
 /** Тот же экземпляр служит короткой блокировкой публикации/configuration; сетевых вызовов под ней нет. */
 class DriveDestinationStore(private val bytes: AtomicBytes, private val protector: MetadataProtector) {
     internal val operations = Mutex()
     internal var deletionLease: UUID? = null
-    @Synchronized fun read(): DriveDestination? = safe {
-        val encrypted = bytes.read() ?: return@safe null
+    private data class Record(val destination: DriveDestination?, val confirmedAt: Long?)
+    @Synchronized fun read(): DriveDestination? = readRecord().destination
+    @Synchronized fun lastUploadedAt(configurationId: UUID): Long? = readRecord().let {
+        if (it.destination?.configurationId == configurationId) it.confirmedAt else null
+    }
+    @Synchronized fun confirmUpload(destination: DriveDestination, instant: Long) {
+        require(instant >= 0)
+        val current = readRecord()
+        if (current.destination != destination) throw DriveConnectionException(DriveConnectionFailure.DESTINATION_CHANGED)
+        writeRecord(Record(destination, instant))
+    }
+    private fun readRecord(): Record = safe {
+        val encrypted = bytes.read() ?: return@safe Record(null, null)
         val plain = protector.open(encrypted)
         try {
             DataInputStream(ByteArrayInputStream(plain)).use { input ->
-                if (plain.size > 2048 || input.readUTF() != DOMAIN) throw IOException()
-                val result = if (input.readBoolean()) DriveDestination(input.readUTF(), input.uuid(), input.uuid()) else null
-                if (input.read() != -1) throw IOException()
-                result
+                if (plain.size > 2048) throw IOException()
+                val domain = input.readUTF()
+                if (domain != DOMAIN && domain != LEGACY_DOMAIN) throw IOException()
+                val destination = if (input.readBoolean()) DriveDestination(input.readUTF(), input.uuid(), input.uuid()) else null
+                val instant = if (domain == DOMAIN && input.readBoolean()) input.readLong().also { if (it < 0) throw IOException() } else null
+                if (input.read() != -1 || (destination == null && instant != null)) throw IOException()
+                Record(destination, instant)
             }
         } finally { plain.fill(0) }
     }
-    @Synchronized fun write(destination: DriveDestination?) = safe {
+    @Synchronized fun write(destination: DriveDestination?) {
+        val previous = readRecord()
+        writeRecord(Record(destination, previous.confirmedAt.takeIf { destination != null && destination == previous.destination }))
+    }
+    private fun writeRecord(record: Record) = safe {
         val plain = ByteArrayOutputStream().also { buffer -> DataOutputStream(buffer).use { output ->
-            output.writeUTF(DOMAIN); output.writeBoolean(destination != null)
-            destination?.let { output.writeUTF(it.accountName); output.uuid(it.configurationId); output.uuid(it.sourceId) }
+            output.writeUTF(DOMAIN); output.writeBoolean(record.destination != null)
+            record.destination?.let { output.writeUTF(it.accountName); output.uuid(it.configurationId); output.uuid(it.sourceId) }
+            output.writeBoolean(record.confirmedAt != null); record.confirmedAt?.let(output::writeLong)
         } }.toByteArray()
         try { bytes.writeAtomically(protector.seal(plain)) } finally { plain.fill(0) }
     }
@@ -60,7 +79,7 @@ class DriveDestinationStore(private val bytes: AtomicBytes, private val protecto
         catch (_: Exception) { throw DriveConnectionException(DriveConnectionFailure.STORAGE) }
     private fun DataOutputStream.uuid(id: UUID) { writeLong(id.mostSignificantBits); writeLong(id.leastSignificantBits) }
     private fun DataInputStream.uuid() = UUID(readLong(), readLong())
-    companion object { private const val DOMAIN = "OpenAuth/drive-destination/v1" }
+    companion object { private const val LEGACY_DOMAIN = "OpenAuth/drive-destination/v1"; private const val DOMAIN = "OpenAuth/drive-destination/v2" }
 }
 
 /** initialSnapshot создаёт ciphertext в разблокированной сессии; worker этой зависимости не получает. */
@@ -73,19 +92,21 @@ class DriveConnectionController(
     private val initialSnapshot: suspend () -> Unit,
 ) {
     suspend fun destination(): DriveDestination? = withContext(Dispatchers.IO) {
-        destinations.read()?.let { destinations.current(queue, it.configurationId) }
+        destinations.read()
     }
     suspend fun refreshStatus(): Unit = withContext(Dispatchers.IO) {
         synchronized(destinations) {
-            val current = destinations.read()?.let { destinations.current(queue, it.configurationId) }
-            if (current == null) status.publish(null, DriveSyncPhase.DISCONNECTED)
+            val stored = destinations.read()
+            val current = stored?.let { destinations.current(queue, it.configurationId) }
+            if (stored != null && current == null) status.publish(stored.configurationId, DriveSyncPhase.FAILED, destinations.lastUploadedAt(stored.configurationId))
+            else if (current == null) status.publish(null, DriveSyncPhase.DISCONNECTED)
             else if (status.state.value.configurationId != current.configurationId) {
                 val checkpoint = queue.checkpoint()
                 status.publish(current.configurationId, when {
                     checkpoint?.uploaded == true -> DriveSyncPhase.UPLOADED
                     checkpoint != null -> DriveSyncPhase.PENDING
                     else -> DriveSyncPhase.WAITING_FOR_UNLOCK
-                })
+                }, destinations.lastUploadedAt(current.configurationId))
             }
         }
     }
@@ -111,6 +132,29 @@ class DriveConnectionController(
             cancel()
             destinations.write(null)
             status.publish(null, DriveSyncPhase.DISCONNECTED)
+        }
+    }
+    /** Сначала останавливаем локальную отправку, затем отзываем grant строго выбранного аккаунта. */
+    suspend fun revoke(selected: DriveDestination, revokeAccess: suspend (String) -> Unit) = withContext(Dispatchers.IO) {
+        synchronized(destinations) {
+            if (destinations.read() != selected) throw DriveConnectionException(DriveConnectionFailure.DESTINATION_CHANGED)
+            deletionLeaseInvalidated()
+            queue.setActiveConfiguration(null)
+            cancel()
+            status.publish(selected.configurationId, DriveSyncPhase.NEEDS_CONSENT)
+        }
+        try {
+            revokeAccess(selected.accountName)
+            synchronized(destinations) {
+                if (destinations.read() != selected) throw DriveConnectionException(DriveConnectionFailure.DESTINATION_CHANGED)
+                destinations.write(null)
+                status.publish(null, DriveSyncPhase.DISCONNECTED)
+            }
+        } catch (failure: Exception) {
+            synchronized(destinations) {
+                if (destinations.read() == selected) status.publish(selected.configurationId, DriveSyncPhase.FAILED)
+            }
+            throw failure
         }
     }
     suspend fun uploadNow() = withContext(Dispatchers.IO) {

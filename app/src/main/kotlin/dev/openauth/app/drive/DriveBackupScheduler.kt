@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 class DriveBackupScheduler(context: Context) {
     private val work = WorkManager.getInstance(context.applicationContext)
     fun enqueue(configurationId: UUID) {
+        if (!DriveFeature.enabled) return
         val request = OneTimeWorkRequestBuilder<DriveBackupWorker>()
             .setInputData(workDataOf(DriveBackupWorker.CONFIGURATION_KEY to configurationId.toString()))
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())

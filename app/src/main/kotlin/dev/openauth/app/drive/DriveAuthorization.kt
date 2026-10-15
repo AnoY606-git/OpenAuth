@@ -8,6 +8,7 @@ import android.content.Intent
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.auth.api.identity.RevokeAccessRequest
 import com.google.android.gms.auth.api.identity.ClearTokenRequest
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -99,6 +100,21 @@ class DriveAuthorization(context: Context) : DriveTokenProvider {
                 DriveOAuthFailure.DENIED -> throw DriveException(DriveFailure.AUTH_REQUIRED)
             }
         }
+    }
+    suspend fun revokeAccess(accountName: String) {
+        if (!available()) throw DriveConnectionException(DriveConnectionFailure.UNAVAILABLE)
+        if (accountName.isBlank() || accountName.length > 320 || accountName.any(Char::isISOControl)) throw DriveConnectionException(DriveConnectionFailure.AUTHORIZATION)
+        try {
+            val request = RevokeAccessRequest.builder().setAccount(Account(accountName, "com.google"))
+                .setScopes(listOf(Scope(SCOPE))).build()
+            suspendCancellableCoroutine<Unit> { continuation ->
+                Identity.getAuthorizationClient(context).revokeAccess(request)
+                    .addOnSuccessListener { if (continuation.isActive) continuation.resume(Unit) }
+                    .addOnFailureListener { if (continuation.isActive) continuation.resumeWithException(safeOAuthFailure(it)) }
+                    .addOnCanceledListener { if (continuation.isActive) continuation.resumeWithException(DriveConnectionException(DriveConnectionFailure.AUTHORIZATION)) }
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { throw DriveConnectionException(DriveConnectionFailure.AUTHORIZATION) }
     }
     companion object { const val SCOPE = "https://www.googleapis.com/auth/drive.appdata" }
 }

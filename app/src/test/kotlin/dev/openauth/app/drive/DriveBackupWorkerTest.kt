@@ -46,7 +46,40 @@ class DriveBackupWorkerTest {
         init { store.write(destination); queue.setActiveConfiguration(destination.configurationId) }
         fun pending(revision: Long = 1) = queue.enqueue(ByteArray(176) { 42 }, revision, "generation", 100)
         fun switchAccount() { queue.setActiveConfiguration(null); store.write(destination.copy(accountName = "b@example.test", configurationId = UUID.randomUUID())); queue.setActiveConfiguration(store.read()!!.configurationId) }
-        fun engine(provider: DriveTokenProvider = DriveTokenProvider { auth(it) }, remote: DriveRemote = transport) = DriveUploadEngine(queue, store, provider, remote, events)
+        fun engine(provider: DriveTokenProvider = DriveTokenProvider { auth(it) }, remote: DriveRemote = transport) = DriveUploadEngine(queue, store, provider, remote, events, now = { 12345L })
+    }
+
+    @Test fun confirmedUploadTimeSurvivesRestartPendingAndFailureButNotAccountSwitch() = runBlocking {
+        val f = Fixture(); f.pending(); f.engine().run(f.destination.configurationId)
+        assertEquals(12345L, f.events.state.value.lastUploadedAtEpochSeconds)
+        f.pending(2); f.uploadAction = { throw DriveException(DriveFailure.NETWORK) }
+        f.engine().run(f.destination.configurationId)
+        assertEquals(12345L, f.events.state.value.lastUploadedAtEpochSeconds)
+        val fresh = DriveSyncStatus()
+        DriveConnectionController(f.queue, DriveDestinationStore(Disk(File(f.directory, "destination")), protector), fresh, {}, {}, {}).refreshStatus()
+        assertEquals(12345L, fresh.state.value.lastUploadedAtEpochSeconds)
+        assertEquals(DriveSyncPhase.PENDING, fresh.state.value.phase)
+        f.switchAccount(); val changed = DriveSyncStatus()
+        DriveConnectionController(f.queue, f.store, changed, {}, {}, {}).refreshStatus()
+        assertNull(changed.state.value.lastUploadedAtEpochSeconds)
+    }
+    @Test fun revokeStopsQueueBeforeExternalCallAndReportsFailureWithoutClearingCapturedAccount() = runBlocking {
+        val f = Fixture(); f.pending(); var cancelled = false
+        val controller = DriveConnectionController(f.queue, f.store, f.events, {}, { cancelled = true }, {})
+        assertThrows(DriveConnectionException::class.java) { runBlocking {
+            controller.revoke(f.destination) { account ->
+                assertEquals(f.destination.accountName, account); assertTrue(cancelled); assertNull(f.queue.activeConfigurationId())
+                throw DriveConnectionException(DriveConnectionFailure.AUTHORIZATION)
+            }
+        } }
+        assertEquals(f.destination, f.store.read())
+        assertEquals(DriveSyncPhase.FAILED, f.events.state.value.phase)
+    }
+    @Test fun revokeStaleSelectionNeverRevokesDifferentAccount() = runBlocking {
+        val f = Fixture(); f.switchAccount()
+        val controller = DriveConnectionController(f.queue, f.store, f.events, {}, {}, {})
+        assertThrows(DriveConnectionException::class.java) { runBlocking { controller.revoke(f.destination) { fail("Stale account revoked") } } }
+        assertEquals("b@example.test", f.store.read()!!.accountName)
     }
 
     @Test fun persistsIdBeforeUploadAndMarksVerifiedCiphertextUploaded() = runBlocking {

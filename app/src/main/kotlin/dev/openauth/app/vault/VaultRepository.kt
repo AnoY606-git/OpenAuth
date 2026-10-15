@@ -40,10 +40,14 @@ interface VaultStorage {
     fun exists(): Boolean = read() != null
     fun read(): ByteArray?
     fun writeAtomically(bytes: ByteArray)
+    fun replacePreservingOriginal(expected: ByteArray, replacement: ByteArray, commit: (() -> Unit) -> Unit = { it() }) { throw IOException("Восстановление не поддерживается") }
 }
 
 interface VaultKeyProtector {
+    fun newRecoveryProtector(): VaultKeyProtector = throw VaultException(VaultFailure.KEY_UNAVAILABLE)
+    fun discardRecoveryKey() {}
     fun prepare(create: Boolean)
+    fun prepareForUnlock() = prepare(false)
     fun wrap(key: ByteArray): ByteArray
     fun unwrap(wrapped: ByteArray): ByteArray
 }
@@ -63,6 +67,67 @@ class VaultRepository(
         if (storage.exists()) VaultState.Locked else VaultState.Uninitialized
     } catch (_: IOException) { VaultState.Unavailable(VaultFailure.STORAGE_UNAVAILABLE) })
     val state: StateFlow<VaultState> = mutableState.asStateFlow()
+
+    /** Непрозрачный снимок основания восстановления; никогда не содержит открытые секреты. */
+    class RecoveryTicket internal constructor(internal val owner: VaultRepository, internal val epoch: Long, internal val ciphertext: ByteArray)
+
+    suspend fun beginRecovery(): RecoveryTicket = withContext(dispatcher) { mutex.withLock {
+        val token = synchronized(guard) {
+            if (session != null) throw VaultException(VaultFailure.LOCKED)
+            epoch
+        }
+        val ciphertext = storage.read() ?: throw VaultException(VaultFailure.CORRUPT_STORAGE)
+        requireEpoch(token)
+        RecoveryTicket(this@VaultRepository, token, ciphertext)
+    } }
+
+    suspend fun validateRecovery(ticket: RecoveryTicket) = withContext(dispatcher) { mutex.withLock {
+        requireRecoverySession(ticket)
+        if (storage.read()?.contentEquals(ticket.ciphertext) != true) throw VaultException(VaultFailure.LOCKED)
+        requireRecoverySession(ticket)
+    } }
+
+    private fun requireRecoverySession(ticket: RecoveryTicket) = synchronized(guard) {
+        requireEpoch(ticket.epoch)
+        if (ticket.owner !== this || session != null) throw VaultException(VaultFailure.LOCKED)
+    }
+
+    /** Новый KEK создаётся до настоящего системного prompt; wrap всё равно проверяется Keystore. */
+    suspend fun recover(ticket: RecoveryTicket, snapshot: VaultSnapshot, authenticate: suspend () -> Unit) = withContext(dispatcher) { mutex.withLock {
+        requireRecoverySession(ticket)
+        if (storage.read()?.contentEquals(ticket.ciphertext) != true) throw VaultException(VaultFailure.LOCKED)
+        // Полная сериализация проверяет вход до создания ключа или изменения файлов.
+        SnapshotJsonCodec.encode(snapshot).fill(0)
+        val replacementKeys = keys.newRecoveryProtector()
+        var installed = false
+        var opened: VaultSession? = null
+        val key = VaultCipher.newKey()
+        try {
+            replacementKeys.prepare(true)
+            authenticate()
+            currentCoroutineContext().ensureActive(); requireRecoverySession(ticket)
+            opened = VaultSession(key, replacementKeys.wrap(key))
+            val bytes = encode(opened, snapshot, null)
+            currentCoroutineContext().ensureActive()
+            val operation = currentCoroutineContext()
+            storage.replacePreservingOriginal(ticket.ciphertext, bytes) { install ->
+                synchronized(guard) {
+                    operation.ensureActive()
+                    requireRecoverySession(ticket)
+                    install()
+                    installed = true
+                    publish(ticket.epoch, opened!!, snapshot, null)
+                    opened = null
+                    // Все другие preview, включая восстановление того же ciphertext, устаревают.
+                    epoch++
+                }
+            }
+
+        } finally {
+            key.fill(0); opened?.close()
+            if (!installed) replacementKeys.discardRecoveryKey()
+        }
+    } }
 
     suspend fun initialize() {
         val token = synchronized(guard) { epoch }
@@ -93,7 +158,7 @@ class VaultRepository(
             try {
                 val bytes = storage.read() ?: throw VaultException(VaultFailure.CORRUPT_STORAGE)
                 val envelope = parseEnvelope(bytes)
-                keys.prepare(false)
+                keys.prepareForUnlock()
                 val key = keys.unwrap(envelope.wrapped)
                 try {
                     if (key.size != 32) throw VaultException(VaultFailure.CORRUPT_STORAGE)

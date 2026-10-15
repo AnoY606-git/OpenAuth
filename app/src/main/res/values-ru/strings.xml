@@ -88,4 +88,20 @@
     <string name="failure_exists">Хранилище уже существует.</string>
     <string name="failure_storage">Не удалось прочитать или сохранить хранилище.</string>
     <string name="invalid_group">Введите уникальное название группы длиной от 1 до 256 символов.</string>
+    <string name="language">Язык</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_english">English</string>
+    <string name="backup_recover_unavailable">Восстановить недоступное хранилище</string>
+    <string name="backup_recovery_explanation">Используйте, если прежнее хранилище не открывается. Возможна только замена: сравнить его аккаунты и счётчики HOTP нельзя. После подтверждения и новой системной аутентификации прежний зашифрованный файл сохраняется отдельно, а хранилище создаётся заново.</string>
+    <string name="backup_incoming">Из резервной копии</string>
+    <string name="backup_duplicate_retained">Тот же генератор · сохраняются эти локальные данные</string>
+    <string name="backup_preview_counter">Следующий счётчик HOTP: %1$d</string>
+    <string name="backup_preview_period">Период: %1$d секунд</string>
+    <string name="backup_preview_group">Группа: %1$s</string>
+    <string name="drive_last_confirmed">Последняя подтверждённая загрузка: %1$s</string>
+    <string name="drive_never_confirmed">Подтверждённых загрузок пока нет</string>
+    <string name="drive_revoke">Отозвать доступ Google</string>
+    <string name="drive_revoke_explanation">Перед отзывом доступа Google для этого аккаунта отправки прекращаются. Следующее подключение потребует нового согласия. Локальные коды остаются доступны. Эта команда не запрашивает удаление облачных копий; для удаления истории есть отдельное действие.</string>
+    <string name="drive_revoked">Доступ Google отозван. Для нового разрешения подключите аккаунт снова.</string>
+    <string name="language_system">Как в системе</string>
 </resources>

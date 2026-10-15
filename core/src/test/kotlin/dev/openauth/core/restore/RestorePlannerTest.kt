@@ -21,6 +21,8 @@ class RestorePlannerTest {
         assertEquals(listOf(local, imported), plan.result.entries)
         assertEquals(1, plan.added)
         assertEquals(0, plan.duplicates)
+        assertEquals(1, plan.accounts.size)
+        assertEquals(imported.issuer, plan.accounts.single().incoming.issuer)
     }
 
     @Test
@@ -41,6 +43,9 @@ class RestorePlannerTest {
         assertEquals(listOf(local), plan.result.entries)
         assertEquals(0, plan.added)
         assertEquals(1, plan.duplicates)
+        assertEquals("Imported", plan.accounts.single().incoming.issuer)
+        assertEquals("Local", plan.accounts.single().retained!!.issuer)
+        assertEquals("local@example.invalid", plan.accounts.single().retained!!.accountName)
         assertEquals(0, plan.remappedIds)
     }
 
