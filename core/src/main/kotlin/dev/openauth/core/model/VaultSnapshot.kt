@@ -3,7 +3,13 @@ package dev.openauth.core.model
 import java.util.Collections
 import java.util.UUID
 
-data class EntryGroup(val id: UUID, val name: String)
+data class EntryGroup(val id: UUID, val name: String) {
+    init {
+        require(name.isNotBlank() && name.length <= 256 && name.none { it.isISOControl() }) {
+            "Название группы должно содержать от 1 до 256 символов без управляющих символов"
+        }
+    }
+}
 
 /** Снимок владеет неизменяемыми списками, чтобы внешние изменения не нарушали связи. */
 class VaultSnapshot(

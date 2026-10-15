@@ -33,7 +33,11 @@ internal class MigrationAccount(
     val digits: Int,
     val counter: Long,
 ) {
-    fun entry(id: UUID, sortIndex: Long) = OtpEntry(id, issuer, name, secret, type, algorithm, digits, 30, counter, null, false, sortIndex)
+    fun entry(id: UUID, sortIndex: Long): OtpEntry = try {
+        OtpEntry(id, issuer, name, secret, type, algorithm, digits, 30, counter, null, false, sortIndex)
+    } catch (_: IllegalArgumentException) {
+        fail(ImportFailure.INVALID_MIGRATION)
+    }
 }
 
 /** Схема Google migration проверена по Aegis и qistoph/otp_export; код написан независимо. */

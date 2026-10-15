@@ -59,7 +59,11 @@ object OtpUriParser {
             if (parameters.containsKey("counter")) fail(ImportFailure.UNSUPPORTED_PARAMETER)
             0L
         }
-        return OtpEntry(id, issuer, account, secret, type, algorithm, digits, period, counter, null, false, 0)
+        return try {
+            OtpEntry(id, issuer, account, secret, type, algorithm, digits, period, counter, null, false, 0)
+        } catch (_: IllegalArgumentException) {
+            fail(ImportFailure.INVALID_URI)
+        }
     }
 
     private fun decimal(value: String): Long {

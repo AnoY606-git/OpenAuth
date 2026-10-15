@@ -167,10 +167,14 @@ class BackupCodecTest {
         assertEquals(BackupFailure.LIMIT_EXCEEDED, assertThrows(BackupException::class.java) {
             SnapshotJsonCodec.decode(ByteArray(8 * 1024 * 1024 + 1))
         }.reason)
-        val huge = snapshot().entries.first().copy(issuer = "x".repeat(8 * 1024 * 1024))
-        assertThrows(BackupException::class.java) {
-            SnapshotJsonCodec.encode(VaultSnapshot(revision = 1, entries = listOf(huge), groups = snapshot().groups))
-        }
+        val escaped = snapshot().entries.first().copy(
+            issuer = "\"".repeat(256), accountName = "\"".repeat(256), groupId = null,
+        )
+        val largeSnapshot = VaultSnapshot(revision = 1,
+            entries = List(10_000) { escaped.copy(id = UUID(0, it.toLong())) }, groups = emptyList())
+        assertEquals(BackupFailure.LIMIT_EXCEEDED, assertThrows(BackupException::class.java) {
+            SnapshotJsonCodec.encode(largeSnapshot)
+        }.reason)
         val entry = SnapshotJsonCodec.encode(snapshot()).toString(Charsets.UTF_8)
             .substringAfter("\"entries\":[").substringBefore("},{") + "}"
         val tooMany = "{\"schemaVersion\":1,\"revision\":1,\"groups\":[],\"entries\":[" + List(10001) { entry }.joinToString(",") + "]}"
