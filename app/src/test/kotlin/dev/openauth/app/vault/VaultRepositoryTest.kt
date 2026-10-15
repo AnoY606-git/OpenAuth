@@ -51,6 +51,26 @@ class VaultRepositoryTest {
         assertTrue(snapshot().entries.isEmpty())
         assertArrayEquals(original, storage.bytes)
     }
+    @Test fun lockDuringInitialWriteLeavesExistingVaultReadyForUnlock() = runTest {
+        storage.onWrite = { repo.lock() }
+        val failure = assertThrows(VaultException::class.java) { runBlocking { repo.initialize() } }
+        assertEquals(VaultFailure.LOCKED, failure.reason)
+        assertEquals(VaultState.Locked, repo.state.value)
+        storage.onWrite = null
+        repo.unlock()
+        assertTrue(snapshot().entries.isEmpty())
+    }
+    @Test fun cancellationDuringInitialWriteDoesNotOpenSession() = runTest {
+        val operation = launch(start = CoroutineStart.LAZY) { repo.initialize() }
+        storage.onWrite = { operation.cancel() }
+        operation.start()
+        operation.join()
+        assertTrue(operation.isCancelled)
+        assertEquals(VaultState.Locked, repo.state.value)
+        storage.onWrite = null
+        repo.unlock()
+        assertTrue(snapshot().entries.isEmpty())
+    }
     @Test fun concurrentMutationsSerializeFromLatestSnapshot() = runTest {
         repo.initialize()
         coroutineScope { repeat(40) { launch(Dispatchers.Default) { add(entry()) } } }

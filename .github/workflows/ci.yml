@@ -69,6 +69,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Место для userdata эмулятора
+        run: |
+          # Только одноразовый GitHub runner: проект устанавливает собственный SDK ниже.
+          # Предустановленный SDK занимает место, необходимое образу userdata (более 7 ГиБ).
+          test "$RUNNER_ENVIRONMENT" = "github-hosted"
+          df -h /
+          sudo rm -rf /usr/local/lib/android/sdk
+          df -h /
       - name: Закреплённые JDK 17 и Android SDK 36
         run: python3 scripts/bootstrap.py --accept-licenses
       - name: Окружение эмулятора
@@ -88,7 +96,7 @@ jobs:
           target: google_apis
           arch: x86_64
           force-avd-creation: true
-          # Одноразовому userdata достаточно 2 ГиБ; оставляем место для сборки на runner.
+          # Эмулятор увеличит раздел до минимума, заданного системным образом.
           disk-size: 2048M
           disable-animations: true
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none

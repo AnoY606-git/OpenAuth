@@ -138,14 +138,21 @@ class VaultRepository(
             val key = VaultCipher.newKey()
             var opened: VaultSession? = null
             try {
-                opened = VaultSession(key, keys.wrap(key))
+                val initialized = VaultSession(key, keys.wrap(key))
+                opened = initialized
                 val snapshot = VaultSnapshot(revision = 0, entries = emptyList(), groups = emptyList())
-                val bytes = encode(opened, snapshot, null)
-                currentCoroutineContext().ensureActive()
+                val bytes = encode(initialized, snapshot, null)
+                val operation = currentCoroutineContext()
+                operation.ensureActive()
                 requireEpoch(token)
                 storage.writeAtomically(bytes)
-                publish(token, opened, snapshot, null)
-                opened = null
+                synchronized(guard) {
+                    // Файл уже существует даже при lock или отмене во время дисковой записи.
+                    if (mutableState.value == VaultState.Uninitialized) mutableState.value = VaultState.Locked
+                    operation.ensureActive()
+                    publish(token, initialized, snapshot, null)
+                    opened = null
+                }
             } finally { key.fill(0); opened?.close() }
         } }
     }

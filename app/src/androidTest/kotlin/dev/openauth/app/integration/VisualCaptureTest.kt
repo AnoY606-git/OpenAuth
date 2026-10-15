@@ -43,7 +43,7 @@ class VisualCaptureTest {
         val arguments = InstrumentationRegistry.getArguments()
         val pin = arguments.getString("testPin")
         assumeNotNull(pin)
-        compose.onNodeWithTag("unlock-vault").performClick()
+        compose.onNodeWithTag("unlock-vault").performScrollTo().performClick()
         val input = device.wait(Until.findObject(By.res("com.android.systemui", "lockPassword")), 10_000)
         assertNotNull(input); input.text = pin!!; device.pressEnter()
         compose.waitUntil(10_000) { app.vault.state.value is VaultState.Unlocked }

@@ -125,7 +125,7 @@ fun OpenAuthApp(
 @Composable
 private fun LockedScreen(state: VaultState, busy: Boolean, error: VaultFailure?, onUnlock: () -> Unit) {
     val first = state == VaultState.Uninitialized
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         OpenAuthIllustration(if (first) IllustrationKind.WELCOME else IllustrationKind.LOCKED, Modifier.widthIn(max = 320.dp))
         Text(stringResource(if (first) R.string.welcome_title else R.string.locked_title), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(if (first) R.string.welcome_body else R.string.locked_body), modifier = Modifier.padding(vertical = 20.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -217,24 +217,28 @@ private fun UnlockedAccounts(viewModel: OpenAuthViewModel, snapshot: VaultSnapsh
         onDismiss = { editor = null; error = null },
         onDelete = draft.id?.let { id -> { editor = null; viewModel.requestDelete(id) } }) }
     deleteId?.let { id -> AlertDialog(onDismissRequest = viewModel::cancelDelete,
-        title = { Text(stringResource(R.string.delete_title)) }, text = { Text(stringResource(R.string.delete_body)) },
+        title = { Text(stringResource(R.string.delete_title)) }, text = { Text(stringResource(R.string.delete_body), Modifier.verticalScroll(rememberScrollState())) },
         confirmButton = { TextButton(onClick = { perform { viewModel.confirmDelete(id); hotpCodes = hotpCodes - id } }, enabled = !busy, modifier = Modifier.testTag("confirm-delete")) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = viewModel::cancelDelete) { Text(stringResource(R.string.cancel)) } }) }
     if (groupDialog) AlertDialog(onDismissRequest = { if (!busy) groupDialog = false },
         title = { Text(stringResource(R.string.new_group)) },
-        text = { Column { OutlinedTextField(groupName, { groupName = it.take(256) }, label = { Text(stringResource(R.string.group_name)) }, singleLine = true); error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } } },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { OutlinedTextField(groupName, { groupName = it.take(256) }, label = { Text(stringResource(R.string.group_name)) }, singleLine = true); error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } } },
         confirmButton = { TextButton(onClick = { perform(R.string.invalid_group) { group = viewModel.createGroup(groupName); groupDialog = false } }, enabled = !busy) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = { groupDialog = false; error = null }) { Text(stringResource(R.string.cancel)) } })
     if (importPreview.isNotEmpty()) AlertDialog(onDismissRequest = { if (!busy) { importFlow.clear(); importPreview = emptyList() } },
         title = { Text(stringResource(R.string.import_title)) },
-        text = { Column { Text(stringResource(R.string.import_body)); LazyColumn(Modifier.heightIn(max = 300.dp)) { items(importPreview, key = { it.id }) { entry -> ListItem(headlineContent = { Text(entry.issuer) }, supportingContent = { Text(entry.accountName) }) } }; error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) } } },
+        text = { LazyColumn(Modifier.heightIn(max = 400.dp)) {
+            item { Text(stringResource(R.string.import_body)) }
+            items(importPreview, key = { it.id }) { entry -> ListItem(headlineContent = { Text(entry.issuer) }, supportingContent = { Text(entry.accountName) }) }
+            error?.let { message -> item { Text(stringResource(message), color = MaterialTheme.colorScheme.error) } }
+        } },
         confirmButton = { TextButton(onClick = { perform { viewModel.addImported(importPreview); importFlow.clear(); importPreview = emptyList() } }, enabled = !busy) { Text(stringResource(R.string.import_confirm, importPreview.size)) } },
         dismissButton = { TextButton(onClick = { importFlow.clear(); importPreview = emptyList() }, enabled = !busy) { Text(stringResource(R.string.cancel)) } })
 }
 
 @Composable
 private fun BackupConnectionPending() {
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         OpenAuthIllustration(IllustrationKind.BACKUP, Modifier.widthIn(max = 300.dp))
         Text(stringResource(R.string.backup_connecting), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.backup_connecting_body), modifier = Modifier.padding(top = 16.dp))

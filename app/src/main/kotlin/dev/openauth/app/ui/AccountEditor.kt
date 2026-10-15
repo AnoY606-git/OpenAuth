@@ -17,7 +17,7 @@ import dev.openauth.app.ui.graphics.*
 import dev.openauth.core.model.*
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AccountEditor(
     initial: AccountDraft,
@@ -51,12 +51,12 @@ fun AccountEditor(
             TextButton(onClick = { advanced = !advanced }) { Text(stringResource(R.string.advanced)) }
             if (advanced) {
                 Text(stringResource(R.string.otp_type), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OtpType.entries.forEach { type -> FilterChip(selected = draft.type == type, onClick = { draft = draft.copy(type = type, algorithm = if (type == OtpType.HOTP) HashAlgorithm.SHA1 else draft.algorithm) }, label = { Text(type.name) }, enabled = !busy) }
                 }
                 if (draft.type == OtpType.TOTP) {
                     Text(stringResource(R.string.algorithm), style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { HashAlgorithm.entries.forEach { algorithm ->
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { HashAlgorithm.entries.forEach { algorithm ->
                         FilterChip(selected = draft.algorithm == algorithm, onClick = { draft = draft.copy(algorithm = algorithm) }, label = { Text(algorithm.name.replace("SHA", "SHA-")) }, enabled = !busy)
                     } }
                     OutlinedTextField(draft.period, { draft = draft.copy(period = it.take(3)) }, label = { Text(stringResource(R.string.period)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
@@ -64,12 +64,13 @@ fun AccountEditor(
                     OutlinedTextField(draft.counter, { draft = draft.copy(counter = it.take(19)) }, label = { Text(stringResource(R.string.counter)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
                 }
                 Text(stringResource(R.string.digits), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { listOf(6, 8).forEach { digits -> FilterChip(selected = draft.digits == digits, onClick = { draft = draft.copy(digits = digits) }, label = { Text(digits.toString()) }, enabled = !busy) } }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { listOf(6, 8).forEach { digits -> FilterChip(selected = draft.digits == digits, onClick = { draft = draft.copy(digits = digits) }, label = { Text(digits.toString()) }, enabled = !busy) } }
             }
             error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("editor-error")) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onDismiss, enabled = !busy, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
-                Button(onClick = { onSave(draft) }, enabled = !busy, modifier = Modifier.weight(1f).testTag("editor-save")) { Text(stringResource(R.string.save)) }
+            val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = if (largeFont) 1 else 2) {
+                OutlinedButton(onClick = onDismiss, enabled = !busy, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
+                Button(onClick = { onSave(draft) }, enabled = !busy, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp).testTag("editor-save")) { Text(stringResource(R.string.save)) }
             }
             if (onDelete != null) TextButton(onClick = onDelete, enabled = !busy, modifier = Modifier.testTag("editor-delete")) { Text(stringResource(R.string.delete_account), color = MaterialTheme.colorScheme.error) }
         }

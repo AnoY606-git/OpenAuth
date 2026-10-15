@@ -77,7 +77,6 @@
     <string name="theme_dark">Тёмная</string>
     <string name="privacy_title">Приватность по умолчанию</string>
     <string name="privacy_body">Коды хранятся на устройстве. Хранилище блокируется при выходе из приложения. Снимки экрана запрещены. Open Auth пытается очистить скопированный код через 30 секунд. Android может отложить очистку до возврата в приложение. После завершения процесса Open Auth не сможет выполнить очистку.</string>
-    <string name="about">Open Auth · свободный исходный код</string>
     <string name="backup_connecting">Зашифрованные копии</string>
     <string name="backup_connecting_body">Подключаем управление копиями. Аккаунты сохраняются в зашифрованном хранилище.</string>
     <string name="failure_device">Сначала установите PIN, пароль или графический ключ в настройках Android.</string>
@@ -104,4 +103,5 @@
     <string name="drive_revoke_explanation">Перед отзывом доступа Google для этого аккаунта отправки прекращаются. Следующее подключение потребует нового согласия. Локальные коды остаются доступны. Эта команда не запрашивает удаление облачных копий; для удаления истории есть отдельное действие.</string>
     <string name="drive_revoked">Доступ Google отозван. Для нового разрешения подключите аккаунт снова.</string>
     <string name="language_system">Как в системе</string>
+    <string name="about_version">Open Auth %1$s · свободный исходный код</string>
 </resources>

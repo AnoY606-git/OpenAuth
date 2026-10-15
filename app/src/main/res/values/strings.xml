@@ -77,7 +77,6 @@
     <string name="theme_dark">Dark</string>
     <string name="privacy_title">Private by design</string>
     <string name="privacy_body">Codes stay on this device. The vault locks when you leave the app. Screenshots are blocked. Open Auth attempts to clear copied codes after 30 seconds. Android may delay cleanup until you return to the app. Open Auth cannot perform cleanup after its process ends.</string>
-    <string name="about">Open Auth · free and open source</string>
     <string name="backup_connecting">Encrypted backups</string>
     <string name="backup_connecting_body">Backup controls are being connected. Your accounts remain in the encrypted vault.</string>
     <string name="failure_device">Set a PIN, password, or pattern in Android settings first.</string>
@@ -104,4 +103,5 @@
     <string name="drive_revoke_explanation">Uploads stop before Google access is revoked for this account. Reconnecting requires consent again. Local codes remain available. This action does not request deletion of cloud backups; deleting backup history is a separate action.</string>
     <string name="drive_revoked">Google access revoked. Reconnect to grant access again.</string>
     <string name="language_system">System</string>
+    <string name="about_version">Open Auth %1$s · free and open source</string>
 </resources>

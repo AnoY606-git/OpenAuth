@@ -8,6 +8,8 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -82,30 +85,50 @@ fun QrScannerScreen(onResult: (String) -> Unit, onCancel: () -> Unit, onManual: 
         }, ContextCompat.getMainExecutor(context))
         onDispose { disposed.set(true); analysis.clearAnalyzer(); provider?.unbind(cameraPreview, analysis); executor.shutdown() }
     }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.scan_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(factory = { preview }, modifier = Modifier.fillMaxSize())
-            Canvas(Modifier.fillMaxSize()) {
-                val edge = size.minDimension * .72f
-                drawRoundRect(Color.White, Offset((size.width-edge)/2, (size.height-edge)/2), Size(edge,edge), CornerRadius(22.dp.toPx()), style = Stroke(3.dp.toPx()))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val header: @Composable () -> Unit = {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.scan_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.cancel)) }
             }
         }
-        Text(stringResource(R.string.scan_hint), modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge)
-        OutlinedButton(onClick = onManual, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp)) { Text(stringResource(R.string.manual_entry)) }
+        val camera: @Composable (Modifier) -> Unit = { modifier ->
+            Box(modifier) {
+                AndroidView(factory = { preview }, modifier = Modifier.fillMaxSize())
+                Canvas(Modifier.fillMaxSize()) {
+                    val edge = size.minDimension * .72f
+                    drawRoundRect(Color.White, Offset((size.width-edge)/2, (size.height-edge)/2), Size(edge,edge), CornerRadius(22.dp.toPx()), style = Stroke(3.dp.toPx()))
+                }
+            }
+        }
+        val instructions: @Composable () -> Unit = {
+            Text(stringResource(R.string.scan_hint), modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp), style = MaterialTheme.typography.bodyLarge)
+            OutlinedButton(onClick = onManual, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp).heightIn(min = 48.dp)) { Text(stringResource(R.string.manual_entry)) }
+        }
+        if (maxWidth > maxHeight) {
+            Row(Modifier.fillMaxSize()) {
+                camera(Modifier.weight(1f).fillMaxHeight())
+                Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) { header(); instructions() }
+            }
+        } else {
+            val previewHeight = (maxHeight - 220.dp * LocalDensity.current.fontScale).coerceAtLeast(160.dp)
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                header()
+                camera(Modifier.fillMaxWidth().height(previewHeight))
+                instructions()
+            }
+        }
     }
+
 }
 
 @Composable
 fun CameraUnavailable(onManual: () -> Unit, onCancel: () -> Unit, onRetry: (() -> Unit)? = null) {
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         OpenAuthIllustration(IllustrationKind.EMPTY_VAULT, Modifier.widthIn(max = 280.dp))
         Text(stringResource(R.string.camera_unavailable_title), style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.camera_unavailable_body), modifier = Modifier.padding(vertical = 16.dp))
-        Button(onClick = onManual, modifier = Modifier.testTag("camera-manual")) { Text(stringResource(R.string.manual_entry)) }
+        Button(onClick = onManual, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("camera-manual")) { Text(stringResource(R.string.manual_entry)) }
         if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.camera_permission)) }
         TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
     }

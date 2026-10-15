@@ -35,4 +35,5 @@
     <string name="backup_credential_or_file_error">Cannot unlock this file. Check the password or PIN and the backup file.</string>
     <string name="backup_stale_error">The vault changed or locked. Open a new preview before restoring.</string>
     <string name="backup_operation_error">The operation could not finish. Check access to the file and try again.</string>
+    <string name="backup_file_status">Save a backup file after changing your accounts. Choose where to keep it.</string>
 </resources>

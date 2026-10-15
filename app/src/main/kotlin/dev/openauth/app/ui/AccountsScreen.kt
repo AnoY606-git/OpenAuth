@@ -8,6 +8,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,52 +62,70 @@ fun AccountsScreen(
             .distinctUntilChanged().collect { currentVisibleCallback(it) }
     }
     var sortMenu by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(horizontal = 20.dp).padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = query, onValueChange = onQuery,
-                modifier = Modifier.weight(1f).testTag("account-search"), singleLine = true,
-                placeholder = { Text(stringResource(R.string.search)) },
-                leadingIcon = { UiSymbol(Symbol.SEARCH) },
-                trailingIcon = if (query.isNotEmpty()) { { LabeledIconButton(R.string.clear_search, Symbol.CLOSE) { onQuery("") } } } else null,
-                shape = MaterialTheme.shapes.large)
-            Box {
-                LabeledIconButton(R.string.sort, Symbol.SORT, modifier = Modifier.padding(start = 4.dp)) { sortMenu = true }
-                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                    AccountSort.entries.forEach { value ->
-                        DropdownMenuItem(text = { Text(stringResource(sortLabel(value))) }, onClick = { onSort(value); sortMenu = false })
+    BoxWithConstraints(Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 720.dp).imePadding()) {
+        val shortWindow = maxHeight < 400.dp
+        val largeFont = LocalDensity.current.fontScale >= 1.3f
+        Column(Modifier.fillMaxSize()) {
+            // Поиск и фильтры прокручиваются вместе с кодами: клавиатура и landscape не скрывают список.
+            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().testTag("accounts-list"),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item(key = "search", contentType = "search") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = query, onValueChange = onQuery,
+                            modifier = Modifier.weight(1f).testTag("account-search"), singleLine = true,
+                            placeholder = { Text(stringResource(R.string.search)) },
+                            leadingIcon = { UiSymbol(Symbol.SEARCH) },
+                            trailingIcon = if (query.isNotEmpty()) { { LabeledIconButton(R.string.clear_search, Symbol.CLOSE) { onQuery("") } } } else null,
+                            shape = MaterialTheme.shapes.large)
+                        Box {
+                            LabeledIconButton(R.string.sort, Symbol.SORT, modifier = Modifier.padding(start = 4.dp)) { sortMenu = true }
+                            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                AccountSort.entries.forEach { value ->
+                                    DropdownMenuItem(text = { Text(stringResource(sortLabel(value))) }, onClick = { onSort(value); sortMenu = false })
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "filters", contentType = "filters") {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !favoritesOnly && groupId == null, onClick = { onFavorites(false); onGroup(null) }, label = { Text(stringResource(R.string.all_accounts)) })
+                        FilterChip(selected = favoritesOnly, onClick = { onFavorites(!favoritesOnly) }, label = { Text(stringResource(R.string.favorites)) }, leadingIcon = { UiSymbol(Symbol.STAR, Modifier.size(16.dp), filled = favoritesOnly) })
+                        snapshot.groups.forEach { group -> FilterChip(selected = groupId == group.id, onClick = { onGroup(if (groupId == group.id) null else group.id) }, label = { Text(group.name) }) }
+                        SuggestionChip(onClick = onNewGroup, label = { Text(stringResource(R.string.new_group)) }, icon = { UiSymbol(Symbol.ADD, Modifier.size(16.dp)) })
+                    }
+                }
+                if (shortWindow) item(key = "actions", contentType = "actions") { AccountActions(largeFont, onScan, onAdd) }
+                if (entries.isEmpty()) {
+                    item(key = "empty", contentType = "empty") {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OpenAuthIllustration(IllustrationKind.EMPTY_VAULT, Modifier.widthIn(max = 240.dp))
+                            Text(stringResource(if (snapshot.entries.isEmpty()) R.string.empty_title else R.string.no_results), style = MaterialTheme.typography.headlineSmall)
+                            Text(stringResource(if (snapshot.entries.isEmpty()) R.string.empty_body else R.string.no_results_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else {
+                    items(entries, key = { it.id }, contentType = { it.type }) { entry ->
+                        AccountCard(entry, codes[entry.id], epochSeconds, onCopy, onFavorite, onEdit, onHotp, Modifier.animateItem(fadeInSpec = tween(OpenAuthMotion.ENTER_MILLIS), placementSpec = tween(OpenAuthMotion.MOVE_MILLIS), fadeOutSpec = tween(OpenAuthMotion.EXIT_MILLIS)))
                     }
                 }
             }
+            if (!shortWindow) AccountActions(largeFont, onScan, onAdd, Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !favoritesOnly && groupId == null, onClick = { onFavorites(false); onGroup(null) }, label = { Text(stringResource(R.string.all_accounts)) })
-            FilterChip(selected = favoritesOnly, onClick = { onFavorites(!favoritesOnly) }, label = { Text(stringResource(R.string.favorites)) }, leadingIcon = { UiSymbol(Symbol.STAR, Modifier.size(16.dp), filled = favoritesOnly) })
-            snapshot.groups.forEach { group -> FilterChip(selected = groupId == group.id, onClick = { onGroup(if (groupId == group.id) null else group.id) }, label = { Text(group.name) }) }
-            SuggestionChip(onClick = onNewGroup, label = { Text(stringResource(R.string.new_group)) }, icon = { UiSymbol(Symbol.ADD, Modifier.size(16.dp)) })
+    }
+
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccountActions(largeFont: Boolean, onScan: () -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = if (largeFont) 1 else 2) {
+        FilledTonalButton(onClick = onScan, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+            UiSymbol(Symbol.SCAN); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.scan_qr))
         }
-        if (entries.isEmpty()) {
-            Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                OpenAuthIllustration(IllustrationKind.EMPTY_VAULT, Modifier.widthIn(max = 280.dp))
-                Text(stringResource(if (snapshot.entries.isEmpty()) R.string.empty_title else R.string.no_results), style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(if (snapshot.entries.isEmpty()) R.string.empty_body else R.string.no_results_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(state = listState, modifier = Modifier.weight(1f).testTag("accounts-list"), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(entries, key = { it.id }, contentType = { it.type }) { entry ->
-                    AccountCard(entry, codes[entry.id], epochSeconds, onCopy, onFavorite, onEdit, onHotp, Modifier.animateItem(fadeInSpec = tween(OpenAuthMotion.ENTER_MILLIS), placementSpec = tween(OpenAuthMotion.MOVE_MILLIS), fadeOutSpec = tween(OpenAuthMotion.EXIT_MILLIS)))
-                }
-            }
-        }
-        val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = if (largeFont) 1 else 2) {
-            FilledTonalButton(onClick = onScan, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).testTag("scan-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
-                UiSymbol(Symbol.SCAN); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.scan_qr))
-            }
-            Button(onClick = onAdd, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
-                UiSymbol(Symbol.ADD); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_account))
-            }
+        Button(onClick = onAdd, modifier = (if (largeFont) Modifier.fillMaxWidth() else Modifier.weight(1f)).heightIn(min = 48.dp).testTag("add-account"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
+            UiSymbol(Symbol.ADD); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_account))
         }
     }
 }
@@ -112,23 +134,30 @@ fun AccountsScreen(
 private fun AccountCard(entry: OtpEntry, code: String?, epochSeconds: Long, onCopy: (UUID) -> Unit, onFavorite: (UUID) -> Unit, onEdit: (UUID) -> Unit, onHotp: (UUID) -> Unit, modifier: Modifier = Modifier) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), shape = MaterialTheme.shapes.large, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ServiceIcon(entry.issuer.ifEmpty { entry.accountName }, Modifier.size(44.dp))
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(entry.issuer.ifEmpty { entry.accountName }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(entry.accountName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val separateActions = maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.3f
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ServiceIcon(entry.issuer.ifEmpty { entry.accountName }, Modifier.size(44.dp))
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(entry.issuer.ifEmpty { entry.accountName }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(entry.accountName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (!separateActions) AccountCardActions(entry, onFavorite, onEdit)
+                    }
+                    if (separateActions) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { AccountCardActions(entry, onFavorite, onEdit) }
                 }
-                LabeledIconButton(if (entry.favorite) R.string.remove_favorite else R.string.add_favorite, Symbol.STAR,
-                    Modifier.testTag("favorite-${entry.id}"), filled = entry.favorite) { onFavorite(entry.id) }
-                LabeledIconButton(R.string.edit_account, Symbol.EDIT, Modifier.testTag("edit-${entry.id}")) { onEdit(entry.id) }
             }
             Spacer(Modifier.height(12.dp))
             val formatted = code?.chunked(if (code.length == 8) 4 else 3)?.joinToString(" ") ?: "••• •••"
             val spoken = code?.toCharArray()?.joinToString(" ") ?: ""
             val description = stringResource(R.string.code_accessible, spoken)
-            Text(formatted, style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 34.sp, letterSpacing = 1.sp),
-                fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.testTag("code-${entry.id}").semantics { contentDescription = description })
+            // Размер подбирается под все цифры, сохраняя системное увеличение шрифта и одну строку.
+            BasicText(formatted, style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace,
+                fontSize = 34.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary),
+                autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 34.sp, stepSize = 1.sp),
+                maxLines = 1, softWrap = false,
+                modifier = Modifier.fillMaxWidth().testTag("code-${entry.id}").semantics { contentDescription = description })
             if (entry.type == OtpType.TOTP) {
                 val remaining = OtpEngine.remainingSeconds(entry.periodSeconds, epochSeconds.coerceAtLeast(0))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -147,8 +176,15 @@ private fun AccountCard(entry: OtpEntry, code: String?, epochSeconds: Long, onCo
 }
 
 @Composable
+private fun AccountCardActions(entry: OtpEntry, onFavorite: (UUID) -> Unit, onEdit: (UUID) -> Unit) {
+    LabeledIconButton(if (entry.favorite) R.string.remove_favorite else R.string.add_favorite, Symbol.STAR,
+        Modifier.testTag("favorite-${entry.id}"), filled = entry.favorite) { onFavorite(entry.id) }
+    LabeledIconButton(R.string.edit_account, Symbol.EDIT, Modifier.testTag("edit-${entry.id}")) { onEdit(entry.id) }
+}
+
+@Composable
 internal fun LabeledIconButton(label: Int, symbol: Symbol, modifier: Modifier = Modifier, enabled: Boolean = true, filled: Boolean = false, onClick: () -> Unit) {
     val description = stringResource(label)
-    IconButton(onClick = onClick, enabled = enabled, modifier = modifier.semantics { contentDescription = description }) { UiSymbol(symbol, filled = filled) }
+    IconButton(onClick = onClick, enabled = enabled, modifier = modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = description }) { UiSymbol(symbol, filled = filled) }
 }
 internal fun sortLabel(sort: AccountSort): Int = when(sort) { AccountSort.ISSUER -> R.string.sort_issuer; AccountSort.ACCOUNT -> R.string.sort_account; AccountSort.ADDED -> R.string.sort_custom }

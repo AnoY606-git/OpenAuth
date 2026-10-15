@@ -35,4 +35,5 @@
     <string name="backup_credential_or_file_error">Не удалось открыть копию. Проверьте пароль или PIN и файл копии.</string>
     <string name="backup_stale_error">Хранилище изменилось или заблокировано. Откройте новый предпросмотр.</string>
     <string name="backup_operation_error">Не удалось завершить операцию. Проверьте доступ к файлу и попробуйте снова.</string>
+    <string name="backup_file_status">Сохраняйте файл копии после изменения аккаунтов. Место хранения выбираете вы.</string>
 </resources>

@@ -8,7 +8,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.openauth.app.drive.DriveFeature
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -94,10 +96,10 @@ fun BackupScreen(
         onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.backup_description))
-        Text(stringResource(when (state) {
+        Text(stringResource(if (!DriveFeature.enabled) R.string.backup_file_status else when (state) {
             BackupState.NeverCreated -> R.string.backup_state_never
             is BackupState.Pending -> R.string.backup_state_pending
             is BackupState.Uploaded -> R.string.backup_state_uploaded
@@ -134,13 +136,13 @@ fun BackupScreen(
     if (action != null) AlertDialog(
         onDismissRequest = { if (!busy) { action = null; password = "" } },
         title = { Text(stringResource(if (action == CredentialAction.RESTORE) R.string.backup_restore_password else R.string.backup_set_password)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             message?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
             Row { Checkbox(pin, { pin = it; password = "" }, enabled = !busy); Text(stringResource(R.string.backup_use_pin), Modifier.padding(top = 12.dp)) }
             Text(stringResource(if (pin) R.string.backup_pin_warning else R.string.backup_password_rule))
             OutlinedTextField(value = password, onValueChange = { if (it.length <= 1024) password = it }, enabled = !busy,
                 label = { Text(stringResource(if (pin) R.string.backup_pin_label else R.string.backup_password_label)) },
-                visualTransformation = PasswordVisualTransformation(), singleLine = true,
+                visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = if (pin) KeyboardType.NumberPassword else KeyboardType.Password))
             if (action == CredentialAction.RESTORE && recovery) Text(stringResource(R.string.backup_recovery_explanation))
             else if (action == CredentialAction.RESTORE) {

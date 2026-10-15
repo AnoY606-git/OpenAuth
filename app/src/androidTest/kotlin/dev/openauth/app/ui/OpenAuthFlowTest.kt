@@ -38,6 +38,23 @@ class OpenAuthFlowTest {
     private val model = OpenAuthViewModel(repository)
     private fun snapshot() = (repository.state.value as VaultState.Unlocked).snapshot
 
+    @Test fun appTitleIsNotClippedAtLargeFont() {
+        compose.setContent {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, 2f),
+            ) { OpenAuthApp(model, onUnlock = {}) }
+        }
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        val title = compose.onNodeWithText("Open Auth")
+        title.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        val visible = title.fetchSemanticsNode().boundsInRoot
+        assertEquals("App title must stay on one line", 1, layout.lineCount)
+        assertTrue("App title horizontal clipping: line=${layout.getLineRight(0)}, size=${layout.size}, visible=$visible", layout.getLineRight(0) <= visible.width + 1f)
+        assertTrue("App title vertical clipping: size=${layout.size}, visible=$visible", layout.size.height <= visible.height + 1f)
+    }
+
     @Test fun manualAddAppearsAsCorrectCodeAndLockHidesItImmediately() {
         runBlocking { repository.initialize() }
         compose.setContent { OpenAuthApp(model, onUnlock = {}, clock = OtpClock { 59 }) }

@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Условия распространения входят в каждый APK и доступны без сети.
+val packageNotices by tasks.registering(Copy::class) {
+    from(rootProject.files("LICENSE", "THIRD_PARTY_NOTICES.md", "ATTRIBUTION.md"))
+    into(layout.buildDirectory.dir("generated/noticeAssets/licenses"))
+}
+
 android {
     namespace = "dev.openauth.app"
     compileSdk = 36
@@ -11,16 +17,19 @@ android {
         applicationId = "dev.openauth.app"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
+    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/noticeAssets"))
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+tasks.named("preBuild") { dependsOn(packageNotices) }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
