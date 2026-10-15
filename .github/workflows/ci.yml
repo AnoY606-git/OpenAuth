@@ -1,0 +1,112 @@
+name: Android CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Исходный код
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Проверка состава репозитория
+        run: |
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+          python3 scripts/check_repository.py
+      - name: Закреплённые JDK 17 и Android SDK 36
+        run: python3 scripts/bootstrap.py --accept-licenses
+      - name: JVM, Android unit, lint и APK
+        run: >-
+          scripts/with-toolchain.sh ./gradlew --no-daemon
+          :core:test :app:testDebugUnitTest :app:testReleaseUnitTest
+          :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleRelease
+      - name: Отчёты проверок
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: check-reports
+          path: |
+            core/build/reports/tests/
+            core/build/test-results/
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-*.html
+            app/build/reports/lint-results-*.xml
+            app/build/reports/lint-results-*.txt
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Debug и неподписанный release APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: apk-debug-and-unsigned-release
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  instrumentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [31, 36]
+    steps:
+      - name: Исходный код
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Закреплённые JDK 17 и Android SDK 36
+        run: python3 scripts/bootstrap.py --accept-licenses
+      - name: Окружение эмулятора
+        run: |
+          echo "JAVA_HOME=$GITHUB_WORKSPACE/.toolchain/jdk" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$GITHUB_WORKSPACE/.toolchain/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$GITHUB_WORKSPACE/.toolchain/android-sdk" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/.toolchain/jdk/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/.toolchain/android-sdk/platform-tools" >> "$GITHUB_PATH"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Настоящие Android Keystore и системная аутентификация
+        uses: ReactiveCircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
+          # PIN — общедоступные синтетические данные одноразового эмулятора.
+          # Сначала проверяется отказ без блокировки, затем все остальные тесты
+          # с системной блокировкой. Реальный Google-аккаунт не подключается.
+          script: |
+            scripts/with-toolchain.sh ./gradlew --no-daemon :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=dev.openauth.app.vault.DeviceKeyStoreTest#insecureDeviceCannotPrepareVaultKey'
+            mv app/build/outputs/androidTest-results/connected app/build/outputs/androidTest-results/insecure
+            mv app/build/reports/androidTests/connected app/build/reports/androidTests/insecure
+            adb shell locksettings set-pin 86420975
+            scripts/with-toolchain.sh ./gradlew --no-daemon :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.notClass=dev.openauth.app.vault.DeviceKeyStoreTest#insecureDeviceCannotPrepareVaultKey' -Pandroid.testInstrumentationRunnerArguments.testPin=86420975
+            python3 -c "import pathlib, xml.etree.ElementTree as E; files=list(pathlib.Path('app/build/outputs/androidTest-results').rglob('TEST-*.xml')); suites=[E.parse(p).getroot() for p in files]; assert suites and any('/insecure/' in str(p) for p in files) and any('/connected/' in str(p) for p in files), 'Отсутствуют отчёты обеих фаз'; assert all(int(s.get('tests', 0)) > 0 and int(s.get('skipped', 0)) == 0 and not s.findall('.//skipped') for s in suites), 'Инструментальные тесты пусты или пропущены'"
+      - name: Отчёты инструментальных тестов
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: instrumentation-api-${{ matrix.api }}
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14

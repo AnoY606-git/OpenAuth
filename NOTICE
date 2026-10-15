@@ -1,0 +1,14 @@
+Open Auth
+Copyright (C) 2026 AnoY606-git and Open Auth contributors
+
+Собственный код Open Auth распространяется по GNU General Public License,
+версия 3, только эта версия (SPDX: GPL-3.0-only). Полный канонический текст
+на английском языке находится в LICENSE.
+
+Авторство заимствованных файлов сохраняется. Скрипты подготовки инструментов
+основаны на SplitBox (AnoY606-git and SplitBox contributors, GPL-3.0-only).
+Gradle Wrapper и его стартовые скрипты предоставлены авторами Gradle
+под Apache License 2.0. Подробности: ATTRIBUTION.md и THIRD_PARTY_NOTICES.md.
+
+Названия сторонних проектов и их лицензии относятся к соответствующим
+компонентам; эта информация не означает одобрения Open Auth их авторами.
