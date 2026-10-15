@@ -43,11 +43,12 @@ def check_paths(paths):
                            for i in range(len(lower) - 1)))
         output_directory = bool(OUTPUT_DIRECTORIES.intersection(lower[:-1]))
         local = name in LOCAL_NAMES or name == ".env" or (name.startswith(".env.") and name != ".env.example")
+        oauth_configuration = name.startswith("client_secret_") and name.endswith(".json")
         suffix = PurePosixPath(name).suffix
         binary = suffix in OUTPUT_SUFFIXES or suffix in PRIVATE_SUFFIXES
         fixture = path.startswith(FIXTURE_ROOTS)
         wrapper = path == "gradle/wrapper/gradle-wrapper.jar"
-        if internal or output_directory or (local and not fixture) or (binary and not fixture and not wrapper):
+        if internal or output_directory or oauth_configuration or (local and not fixture) or (binary and not fixture and not wrapper):
             rejected.append(path)
     return rejected
 

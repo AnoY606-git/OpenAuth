@@ -39,6 +39,7 @@ __pycache__/
 *.keystore
 keystore.properties
 signing.properties
+client_secret_*.json
 *.p12
 *.pem
 *.oab

@@ -48,6 +48,12 @@ class RepositoryPolicyTest(unittest.TestCase):
         paths = ["library.aar", "native/libvault.so", "native/crypto.o", "tool.exe"]
         self.assertEqual(paths, check_repository.check_paths(paths))
 
+    def test_rejects_downloaded_oauth_client_configuration(self):
+        paths = ["client_secret_123.apps.googleusercontent.com.json", "config/client_secret_android.json",
+                 "scripts/tests/fixtures/client_secret_example.json", "nested/CLIENT_SECRET_ANDROID.JSON"]
+        self.assertEqual(paths, check_repository.check_paths(paths))
+        self.assertEqual([], check_repository.check_paths(["docs/oauth-client-example.json", "client_secret_notes.md"]))
+
     def test_reads_only_tracked_names_from_temporary_git_index(self):
         with tempfile.TemporaryDirectory(prefix="openauth policy ") as directory:
             root = Path(directory)
